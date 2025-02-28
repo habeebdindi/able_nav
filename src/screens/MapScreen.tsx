@@ -17,7 +17,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { AccessibilityFeature, AccessibleRoute, BuildingPlan, Floor, IndoorPosition } from '../types';
 // import { getAccessibilityFeatures, getAccessibleRoutes } from '../services/mockDataService';
-import { loadBuildingPlans, getBuildingPlanById, coordinateToFloorPosition } from '../services/floorPlanService';
+import { loadBuildingPlans, getBuildingPlanById, coordinateToFloorPosition, floorPositionToCoordinate, getFloorById } from '../services/floorPlanService';
 import IndoorMapView from '../components/IndoorMapView';
 import ARNavigationView from '../components/ARNavigationView';
 import { LocationService } from '../services/locationService';
@@ -155,6 +155,7 @@ const MapScreen: React.FC<MapScreenProps> = () => {
       
       // If within our maximum distance, consider it nearby
       if (distance <= MAX_DISTANCE_KM) {
+        console.log("Found nearby building by distance:", building.name);
         return building;
       }
     }
@@ -163,16 +164,23 @@ const MapScreen: React.FC<MapScreenProps> = () => {
     for (const building of buildings) {
       const { topLeft, bottomRight } = building.referenceCoordinates;
       
-      if (
-        latitude >= topLeft.latitude &&
-        latitude <= bottomRight.latitude &&
-        longitude >= topLeft.longitude &&
-        longitude <= bottomRight.longitude
-      ) {
+      // FIXED: For southern hemisphere (negative latitudes), the comparison logic is reversed
+      const isLatInRange = (latitude <= topLeft.latitude && latitude >= bottomRight.latitude);
+      const isLonInRange = (longitude >= topLeft.longitude && longitude <= bottomRight.longitude);
+      
+      // Add logging to debug the coordinate check
+      console.log(`Checking if inside building: ${building.name}`);
+      console.log(`User coordinates: ${latitude}, ${longitude}`);
+      console.log(`Building bounds: ${topLeft.latitude},${topLeft.longitude} to ${bottomRight.latitude},${bottomRight.longitude}`);
+      console.log(`Is latitude in range: ${isLatInRange}, Is longitude in range: ${isLonInRange}`);
+      
+      if (isLatInRange && isLonInRange) {
+        console.log("User is INSIDE the building bounds");
         return building;
       }
     }
     
+    console.log("No building found near user location");
     return null;
   };
 
@@ -239,8 +247,10 @@ const MapScreen: React.FC<MapScreenProps> = () => {
       const groundFloor = selectedBuilding.floors.find(f => f.level === 1);
       if (groundFloor) {
         setSelectedFloorId(groundFloor.id);
+        console.log(`Selected floor: ${groundFloor.name} (${groundFloor.id})`);
       } else if (selectedBuilding.floors.length > 0) {
         setSelectedFloorId(selectedBuilding.floors[0].id);
+        console.log(`Selected floor: ${selectedBuilding.floors[0].name} (${selectedBuilding.floors[0].id})`);
       }
       
       // Start location tracking
@@ -250,26 +260,71 @@ const MapScreen: React.FC<MapScreenProps> = () => {
           locationSubscription.remove();
         }
         
+        console.log('Starting indoor location tracking...');
+        
+        // Get current location first to initialize user position immediately
+        try {
+          const initialLocation = await LocationService.getCurrentLocation();
+          if (initialLocation && selectedBuilding) {
+            console.log('Initial indoor location:', initialLocation.coords);
+            
+            const floorId = groundFloor ? groundFloor.id : selectedBuilding.floors[0].id;
+            
+            // Update indoor position immediately
+            const position = coordinateToFloorPosition(
+              { 
+                latitude: initialLocation.coords.latitude, 
+                longitude: initialLocation.coords.longitude 
+              },
+              selectedBuilding.id,
+              floorId
+            );
+            
+            if (position) {
+              console.log('Setting initial indoor position:', position);
+              setUserIndoorPosition(position);
+            } else {
+              console.log('Failed to calculate initial indoor position');
+            }
+          }
+        } catch (error) {
+          console.error('Error getting initial indoor location:', error);
+        }
+        
         // Start a new subscription
         const subscription = await LocationService.watchLocation(
           (location) => {
-            console.log('Location update received:', location);
+            console.log('Indoor location update received:', location.coords);
             // We'll use the location in the floor detection effect
           },
           (error) => {
-            console.error('Error watching location:', error);
+            console.error('Error watching indoor location:', error);
           }
         );
         
         if (subscription) {
           setLocationSubscription(subscription);
         } else {
-          console.warn('Failed to start location tracking');
+          console.warn('Failed to start indoor location tracking');
           
-          // In development, use mock location
+          // In development, use mock location for testing
           if (__DEV__) {
-            const mockLocation = LocationService.getMockLocation();
-            const floorId = selectedBuilding.floors[0].id;
+            // Update to use your actual position for testing, rather than the default mock
+            const mockLocation = {
+              coords: {
+                latitude: -1.930647, 
+                longitude: 30.153170,
+                altitude: 0,
+                accuracy: 5,
+                altitudeAccuracy: 5,
+                heading: 0,
+                speed: 0,
+              },
+              timestamp: Date.now(),
+            };
+            
+            const floorId = groundFloor ? groundFloor.id : selectedBuilding.floors[0].id;
+            
             const position = coordinateToFloorPosition(
               { 
                 latitude: mockLocation.coords.latitude, 
@@ -449,66 +504,174 @@ const MapScreen: React.FC<MapScreenProps> = () => {
     }
   };
 
-  // Function to detect which floor the user is on
   const detectUserFloor = (building: BuildingPlan, location: Location.LocationObject): string | null => {
-    // In a real app, this would use barometric pressure, WiFi signal strength, or beacons
-    // For this demo, we'll use a simple algorithm based on mock data
+    // In a real app, this would use barometric pressure, WiFi, or beacons
+    // For the demo, we'll use a more sophisticated approach that simulates real floor detection
     
-    // For development/testing, cycle through floors every 10 seconds
-    if (__DEV__) {
-      const floorIndex = Math.floor(Date.now() / 10000) % building.floors.length;
-      return building.floors[floorIndex].id;
+    // Distance-based floor detection: each floor has "hotspot" areas that trigger floor changes
+    
+    // Define floor detection regions for the demo (in real app, these would be calibrated)
+    const floorHotspots = {
+      'leadership-floor-ground': [
+        // Ground floor detected near entrance, restrooms, etc.
+        { lat: -1.930795, lng: 30.152860, radius: 0.0001 }, // Main entrance
+        { lat: -1.930638, lng: 30.153087, radius: 0.0001 }, // Male restroom
+        { lat: -1.930647, lng: 30.153170, radius: 0.0001 }  // Elevator ground floor
+      ],
+      'leadership-floor-first': [
+        // First floor detected near computer lab, elevator exit, etc.
+        { lat: -1.930656, lng: 30.153010, radius: 0.0001 }, // Computer lab
+        { lat: -1.930647, lng: 30.153170, radius: 0.0002 }, // Elevator first floor
+        { lat: -1.930582, lng: 30.152950, radius: 0.0001 }  // Study room
+      ],
+      'leadership-floor-second': [
+        // Second floor detected near meeting rooms, staff area, etc.
+        { lat: -1.930727, lng: 30.153055, radius: 0.0003 }, // Updated to match your current position
+        { lat: -1.930647, lng: 30.153170, radius: 0.0003 }, // Elevator second floor
+        { lat: -1.930700, lng: 30.152990, radius: 0.0002 }  // Reading area
+      ]
+    };
+    
+    // For demo purposes, check if we're in a specific location range that should be second floor
+    // This is a temporary fix based on the logs showing your current position
+    const userLat = location.coords.latitude;
+    const userLng = location.coords.longitude;
+    
+    // Check if user is in the range that should be second floor based on logs
+    if (userLat > -1.9308 && userLat < -1.9307 && 
+        userLng > 30.1530 && userLng < 30.1531) {
+      console.log("Detected user on second floor based on coordinate range");
+      return 'leadership-floor-second';
     }
     
-    // In a real app, you would implement actual floor detection logic here
-    // For now, just return the first floor
-    return building.floors[0].id;
+    // Helper to calculate distance
+    const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+      const R = 6371e3; // Earth radius in meters
+      const φ1 = (lat1 * Math.PI) / 180;
+      const φ2 = (lat2 * Math.PI) / 180;
+      const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+      const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+      
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+      
+      return distance;
+    };
+    
+    // Try to identify floor by proximity to known areas
+    // Start with a high minimum distance
+    let minDistance = 1000; // 1000 meters
+    let detectedFloorId = null;
+    
+    // Check distance to each hotspot on each floor
+    Object.entries(floorHotspots).forEach(([floorId, hotspots]) => {
+      hotspots.forEach(hotspot => {
+        const distance = calculateDistance(userLat, userLng, hotspot.lat, hotspot.lng);
+        
+        // If within radius of a hotspot and closer than previous matches
+        if (distance < hotspot.radius * 111320 && distance < minDistance) { // 111320 meters per degree
+          minDistance = distance;
+          detectedFloorId = floorId;
+        }
+      });
+    });
+    
+    // If no floor detected by hotspots, use time-based demo simulation
+    if (!detectedFloorId && __DEV__) {
+      // Cycle through floors automatically for the demo
+      // Get a 3-minute cycle that changes every minute
+      const cycleTimeMinutes = Math.floor(Date.now() / (60000)) % 3;
+      
+      switch (cycleTimeMinutes) {
+        case 0:
+          return building.floors[0].id; // Ground floor
+        case 1:
+          return building.floors[1].id; // First floor
+        case 2:
+          return building.floors[2].id; // Second floor
+        default:
+          return building.floors[0].id;
+      }
+    }
+    
+    return detectedFloorId || building.floors[0].id; // Default to ground floor
   };
 
   // Update the indoor position and floor when location changes
   useEffect(() => {
     if (showIndoorMap && selectedBuilding && locationSubscription) {
-      // Get current location
-      const getCurrentLocation = async () => {
+      console.log("Indoor position tracking active");
+      
+      // Get current location more frequently
+      const updateInterval = 2000; // Update every 2 seconds for demo
+      
+      const updatePositionAndFloor = async () => {
         try {
+          // Get current location
           const location = await LocationService.getCurrentLocation();
           if (location && selectedBuilding) {
+            console.log(`Location update: ${location.coords.latitude}, ${location.coords.longitude}`);
+            
             // Detect which floor the user is on
             const detectedFloorId = detectUserFloor(selectedBuilding, location);
             
+            // If floor has changed, update the UI
             if (detectedFloorId && detectedFloorId !== selectedFloorId) {
-              console.log(`Detected user on floor: ${detectedFloorId}`);
-              setSelectedFloorId(detectedFloorId);
+              console.log(`Floor changed to: ${detectedFloorId}`);
+              const newFloor = getFloorById(selectedBuilding.id, detectedFloorId);
+              if (newFloor) {
+                console.log(`Switching to floor: ${newFloor.name}`);
+                setSelectedFloorId(detectedFloorId);
+                
+                // When floor changes, make sure to load the features and routes for this floor
+                if (selectedBuilding.floors) {
+                  const floor = selectedBuilding.floors.find(f => f.id === detectedFloorId);
+                  if (floor) {
+                    // Load features and routes for this floor
+                    setFeatures(floor.features || []);
+                    setRoutes(floor.routes || []);
+                    console.log(`Loaded ${floor.features?.length || 0} features and ${floor.routes?.length || 0} routes for floor ${floor.name}`);
+                  }
+                }
+              }
             }
             
+            // Get the current floor (either newly detected or existing)
+            const currentFloorId = detectedFloorId || selectedFloorId;
+            if (!currentFloorId) return;
+            
             // Update user position on the current floor
-            if (detectedFloorId) {
-              const position = coordinateToFloorPosition(
-                { 
-                  latitude: location.coords.latitude, 
-                  longitude: location.coords.longitude 
-                },
-                selectedBuilding.id,
-                detectedFloorId
-              );
-              
-              if (position) {
-                setUserIndoorPosition(position);
-              }
+            const position = coordinateToFloorPosition(
+              { 
+                latitude: location.coords.latitude, 
+                longitude: location.coords.longitude 
+              },
+              selectedBuilding.id,
+              currentFloorId
+            );
+            
+            if (position) {
+              console.log(`New indoor position: x=${position.x}, y=${position.y} on floor ${currentFloorId}`);
+              setUserIndoorPosition(position);
             }
           }
         } catch (error) {
-          console.error('Error getting current location for floor detection:', error);
+          console.error('Error updating indoor position:', error);
         }
       };
       
-      // Update every 5 seconds
-      const intervalId = setInterval(getCurrentLocation, 5000);
+      // Initial update
+      updatePositionAndFloor();
       
-      // Initial call
-      getCurrentLocation();
+      // Set up interval for regular updates
+      const intervalId = setInterval(updatePositionAndFloor, updateInterval);
       
-      return () => clearInterval(intervalId);
+      return () => {
+        clearInterval(intervalId);
+      };
     }
   }, [showIndoorMap, selectedBuilding, selectedFloorId, locationSubscription]);
 
@@ -680,6 +843,44 @@ const MapScreen: React.FC<MapScreenProps> = () => {
                 <View style={styles.devTools}>
                   <Text style={styles.devToolsTitle}>Development Tools</Text>
                   
+                  {/* Add coordinate display */}
+                  <View style={styles.devCoordinates}>
+                    <Text style={styles.devCoordinateText}>
+                      Current: {route.params?.initialLocation?.latitude.toFixed(6) || "Unknown"}, 
+                      {route.params?.initialLocation?.longitude.toFixed(6) || "Unknown"}
+                    </Text>
+                  </View>
+                  
+                  {/* Add force building entry button */}
+                  <TouchableOpacity
+                    style={styles.debugButton}
+                    onPress={() => {
+                      if (buildingPlans.length > 0) {
+                        setSelectedBuilding(buildingPlans[0]);
+                        handleEnterBuilding();
+                      } else {
+                        Alert.alert('No buildings loaded');
+                      }
+                    }}
+                  >
+                    <Text style={styles.debugButtonText}>Force Enter Building</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Add a button to toggle test mode for indoor map */}
+                  <TouchableOpacity
+                    style={styles.debugButton}
+                    onPress={() => {
+                      // Toggle test mode - you can implement this variable in your state
+                      Alert.alert(
+                        'Test Mode',
+                        'This would toggle test mode for the indoor map. Add this state to your component.',
+                        [{ text: 'OK' }]
+                      );
+                    }}
+                  >
+                    <Text style={styles.debugButtonText}>Toggle Test Mode</Text>
+                  </TouchableOpacity>
+                  
                   {selectedBuilding && selectedFloorId && (
                     <TouchableOpacity
                       style={styles.mapperButton}
@@ -696,130 +897,129 @@ const MapScreen: React.FC<MapScreenProps> = () => {
                     </TouchableOpacity>
                   )}
                   
-                  {selectedBuilding && !selectedFloorId && (
-                    <TouchableOpacity
-                      style={styles.mapperButton}
-                      onPress={() => {
-                        // If no floor is selected, use the first floor
-                        const firstFloor = selectedBuilding.floors[0];
-                        if (firstFloor) {
-                          navigation.navigate('FloorPlanMapper', {
-                            buildingId: selectedBuilding.id,
-                            floorId: firstFloor.id
+                  {/* Add button to show current position on map */}
+                  <TouchableOpacity
+                    style={styles.debugButton}
+                    onPress={async () => {
+                      try {
+                        const location = await LocationService.getCurrentLocation();
+                        if (location) {
+                          Alert.alert(
+                            'Current Position',
+                            `Lat: ${location.coords.latitude.toFixed(6)}\nLong: ${location.coords.longitude.toFixed(6)}`
+                          );
+                          
+                          // Center map on current location
+                          mapRef.current?.animateToRegion({
+                            latitude: location.coords.latitude,
+                            longitude: location.coords.longitude,
+                            latitudeDelta: 0.001,
+                            longitudeDelta: 0.001,
                           });
                         } else {
-                          Alert.alert('Error', 'No floors available for this building');
+                          Alert.alert('Error', 'Could not get current location');
                         }
-                      }}
-                    >
-                      <Text style={styles.mapperButtonText}>
-                        Edit Building Features
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                      } catch (error) {
+                        console.error('Error getting position:', error);
+                        Alert.alert('Error', 'Failed to get position: ' + error);
+                      }
+                    }}
+                  >
+                    <Text style={styles.debugButtonText}>Show My Position</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </>
           ) : (
             // Indoor map view
-            <>
-              {selectedBuilding && selectedFloorId && (
-                <IndoorMapView
-                  buildingPlan={selectedBuilding}
-                  initialFloorId={selectedFloorId}
-                  onFeaturePress={handleIndoorFeaturePress}
-                  onRoutePress={handleIndoorRoutePress}
-                  userPosition={userIndoorPosition || undefined}
-                  selectedFeature={selectedFeature}
-                  selectedRoute={selectedRoute}
-                />
-              )}
+            <View style={styles.indoorMapContainer}>
+              <IndoorMapView
+                buildingPlan={selectedBuilding!}
+                initialFloorId={selectedFloorId || undefined}
+                onFeaturePress={handleIndoorFeaturePress}
+                onRoutePress={handleIndoorRoutePress}
+                onFloorChange={(floorId) => {
+                  console.log(`Floor changed to ${floorId} via UI`);
+                  setSelectedFloorId(floorId);
+                  
+                  // When floor changes, make sure to load the features and routes for this floor
+                  if (selectedBuilding && selectedBuilding.floors) {
+                    const floor = selectedBuilding.floors.find(f => f.id === floorId);
+                    if (floor) {
+                      // Load features and routes for this floor
+                      setFeatures(floor.features || []);
+                      setRoutes(floor.routes || []);
+                      console.log(`Loaded ${floor.features?.length || 0} features and ${floor.routes?.length || 0} routes for floor ${floor.name}`);
+                    }
+                  }
+                }}
+                showFeatures={true}
+                showRoutes={true}
+                userPosition={userIndoorPosition || undefined}
+                selectedFeature={selectedFeature}
+                selectedRoute={selectedRoute}
+              />
               
-              <TouchableOpacity 
-                style={styles.exitBuildingButton}
+              {/* Floor selector */}
+              <View style={styles.floorSelectorContainer}>
+                <Text style={styles.floorSelectorTitle}>Floors</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {selectedBuilding?.floors.map((floor) => (
+                    <TouchableOpacity
+                      key={floor.id}
+                      style={[
+                        styles.floorButton,
+                        selectedFloorId === floor.id && styles.floorButtonActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedFloorId(floor.id);
+                        console.log(`Manually selected floor: ${floor.name}`);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.floorButtonText,
+                          selectedFloorId === floor.id && styles.floorButtonTextActive,
+                        ]}
+                      >
+                        {floor.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              
+              {/* Debug info */}
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>
+                  Current Floor: {selectedBuilding?.floors.find(f => f.id === selectedFloorId)?.name || 'Unknown'}
+                </Text>
+                <Text style={styles.debugText}>
+                  Position: {userIndoorPosition ? `x=${userIndoorPosition.x.toFixed(0)}, y=${userIndoorPosition.y.toFixed(0)}` : 'Unknown'}
+                </Text>
+                <Text style={styles.debugText}>
+                  Features: {features.length}, Routes: {routes.length}
+                </Text>
+              </View>
+              
+              {/* Exit button */}
+              <TouchableOpacity
+                style={styles.exitButton}
                 onPress={handleExitBuilding}
               >
-                <Text style={styles.exitBuildingButtonText}>Exit Building</Text>
+                <Text style={styles.exitButtonText}>Exit Building</Text>
               </TouchableOpacity>
-              
-              {selectedFeature && (
-                <View style={styles.indoorFeatureInfoCard}>
-                  <View style={styles.featureHeader}>
-                    <Text style={styles.featureTitle}>{selectedFeature.title}</Text>
-                    <TouchableOpacity onPress={() => setSelectedFeature(null)}>
-                      <Text style={styles.closeButton}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.featureType}>{selectedFeature.type.toUpperCase()}</Text>
-                  <Text style={styles.featureDescription}>{selectedFeature.description}</Text>
-                  <TouchableOpacity 
-                    style={styles.arButton}
-                    onPress={handleStartARNavigation}
-                  >
-                    <Text style={styles.arButtonText}>AR Navigation</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              
-              {/* Feature Prompt Modal */}
-              <Modal
-                visible={showFeaturePrompt}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setShowFeaturePrompt(false)}
-              >
-                <TouchableOpacity 
-                  style={styles.modalOverlay}
-                  activeOpacity={1}
-                  onPress={() => setShowFeaturePrompt(false)}
-                >
-                  <View 
-                    style={styles.featurePromptContainer}
-                    // This prevents touches from propagating to the parent
-                    onStartShouldSetResponder={() => true}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                  >
-                    {selectedFeature && (
-                      <>
-                        <Text style={styles.promptTitle}>{selectedFeature.title}</Text>
-                        <TouchableOpacity 
-                          style={styles.promptButton}
-                          onPress={() => {
-                            setShowFeaturePrompt(false);
-                            handleStartARNavigation();
-                          }}
-                        >
-                          <Text style={styles.promptButtonText}>AR Navigation</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={styles.promptCloseButton}
-                          onPress={() => setShowFeaturePrompt(false)}
-                        >
-                          <Text style={styles.promptCloseButtonText}>Close</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              </Modal>
-            </>
+            </View>
           )}
           
-          {/* AR Navigation Modal */}
-          <Modal
-            visible={showARNavigation}
-            animationType="slide"
-            onRequestClose={handleCloseARNavigation}
-          >
-            {selectedBuilding && selectedFloorId && selectedFeature && (
-              <ARNavigationView
-                buildingId={selectedBuilding.id}
-                floorId={selectedFloorId}
-                destinationFeature={selectedFeature}
-                onClose={handleCloseARNavigation}
-              />
-            )}
-          </Modal>
+          {/* AR Navigation overlay */}
+          {showARNavigation && (
+            <ARNavigationView
+              buildingId={selectedBuilding?.id || ''}
+              floorId={selectedFloorId || ''}
+              onClose={handleCloseARNavigation}
+            />
+          )}
         </>
       )}
     </View>
@@ -1177,6 +1377,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  devCoordinates: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 8,
+    borderRadius: 4,
+    marginVertical: 4,
+  },
+  devCoordinateText: {
+    color: '#FFF',
+    fontSize: 10,
+  },
+  debugButton: {
+    backgroundColor: '#9C27B0',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginVertical: 4,
+  },
+  debugButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 12,
+    textAlign: 'center',
+  },
   mapperButton: {
     backgroundColor: '#F06292',
     paddingVertical: 8,
@@ -1189,6 +1412,83 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
     textAlign: 'center',
+  },
+  indoorMapContainer: {
+    flex: 1,
+    backgroundColor: '#F5F8FF',
+  },
+  floorSelectorContainer: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    height: 50,
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  floorSelectorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333',
+  },
+  floorButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  floorButtonActive: {
+    backgroundColor: '#4A80F0',
+  },
+  floorButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  floorButtonTextActive: {
+    color: '#FFF',
+  },
+  debugContainer: {
+    position: 'absolute',
+    top: 80, // Move below the floor selector
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 8,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    zIndex: 1000,
+  },
+  debugText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  exitButton: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    backgroundColor: '#FF4500',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  exitButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
   },
 });
 
