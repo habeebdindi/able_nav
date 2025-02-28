@@ -5,6 +5,9 @@ import { Alert } from 'react-native';
 // In-memory cache for loaded floor plans
 let buildingPlansCache: BuildingPlan[] = [];
 
+// Cache for image dimensions to avoid recalculating
+const imageDimensionsCache = new Map<string, { width: number, height: number }>();
+
 /**
  * Load building plans from storage or API
  * In a real app, this would fetch from a backend API
@@ -13,7 +16,7 @@ export const loadBuildingPlans = async (): Promise<BuildingPlan[]> => {
   try {
     // For now, we'll return the mock data
     // In a real app, this would fetch from an API or local storage
-    buildingPlansCache = getMockBuildingPlans();
+    buildingPlansCache = getBuildingPlans();
     return buildingPlansCache;
   } catch (error) {
     console.error('Error loading building plans:', error);
@@ -40,6 +43,25 @@ export const getFloorById = (buildingId: string, floorId: string): Floor | undef
 };
 
 /**
+ * Set image dimensions for a floor
+ */
+export const setFloorImageDimensions = (
+  floorId: string,
+  dimensions: { width: number, height: number }
+): void => {
+  imageDimensionsCache.set(floorId, dimensions);
+};
+
+/**
+ * Get image dimensions for a floor
+ */
+export const getFloorImageDimensions = (
+  floorId: string
+): { width: number, height: number } | undefined => {
+  return imageDimensionsCache.get(floorId);
+};
+
+/**
  * Convert a real-world coordinate to a position on the floor plan
  */
 export const coordinateToFloorPosition = (
@@ -61,10 +83,11 @@ export const coordinateToFloorPosition = (
   const latRatio = (coordinate.latitude - topLeft.latitude) / (bottomRight.latitude - topLeft.latitude);
   const lngRatio = (coordinate.longitude - topLeft.longitude) / (bottomRight.longitude - topLeft.longitude);
   
-  // Get the dimensions of the floor plan image (this would need to be determined from the actual image)
-  // For now, we'll use placeholder values
-  const imageWidth = 1000; // pixels
-  const imageHeight = 800; // pixels
+  // Get the dimensions of the floor plan image
+  // Try to get from cache first, otherwise use default values
+  const cachedDimensions = getFloorImageDimensions(floorId);
+  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000; // pixels
+  const imageHeight = cachedDimensions ? cachedDimensions.height : 800; // pixels
   
   // Calculate the position on the floor plan
   const x = Math.round(lngRatio * imageWidth);
@@ -91,10 +114,11 @@ export const floorPositionToCoordinate = (
   
   const { topLeft, bottomRight } = building.referenceCoordinates;
   
-  // Get the dimensions of the floor plan image (this would need to be determined from the actual image)
-  // For now, we'll use placeholder values
-  const imageWidth = 1000; // pixels
-  const imageHeight = 800; // pixels
+  // Get the dimensions of the floor plan image
+  // Try to get from cache first, otherwise use default values
+  const cachedDimensions = getFloorImageDimensions(position.floorId);
+  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000; // pixels
+  const imageHeight = cachedDimensions ? cachedDimensions.height : 800; // pixels
   
   // Calculate the relative position within the image
   const latRatio = position.y / imageHeight;
@@ -177,178 +201,115 @@ export const addAccessibleRoute = (
 /**
  * Mock building plans for testing
  */
-const getMockBuildingPlans = (): BuildingPlan[] => {
+const getBuildingPlans = (): BuildingPlan[] => {
   return [
     {
       id: 'building-1',
-      name: 'Main Campus Building',
-      description: 'The main academic building on campus',
+      name: 'Leadership Center',
+      description: 'ALU Leadership Center with accessible facilities',
+      // These are example coordinates - you should replace with actual GPS coordinates
       referenceCoordinates: {
-        topLeft: { latitude: 37.7850, longitude: -122.4350 },
-        topRight: { latitude: 37.7850, longitude: -122.4330 },
-        bottomLeft: { latitude: 37.7830, longitude: -122.4350 },
-        bottomRight: { latitude: 37.7830, longitude: -122.4330 }
+        topLeft: { latitude: -1.9442, longitude: 30.0619 },
+        topRight: { latitude: -1.9442, longitude: 30.0629 },
+        bottomLeft: { latitude: -1.9452, longitude: 30.0619 },
+        bottomRight: { latitude: -1.9452, longitude: 30.0629 }
       },
       floors: [
         {
-          id: 'floor-1',
+          id: 'leadership-floor-ground',
           level: 1,
           name: 'Ground Floor',
-          floorPlanUri: 'https://example.com/floorplans/building1-floor1.png', // This would be a local URI in a real app
-          scale: {
-            pixelsPerMeter: 20 // 20 pixels = 1 meter
-          },
-          features: [
-            {
-              id: 'feature-1',
-              type: 'entrance',
-              title: 'Main Entrance',
-              description: 'Wheelchair accessible main entrance with automatic doors',
-              coordinate: { latitude: 37.7845, longitude: -122.4348 }
-            },
-            {
-              id: 'feature-2',
-              type: 'elevator',
-              title: 'Main Elevator',
-              description: 'Accessible elevator to all floors',
-              coordinate: { latitude: 37.7842, longitude: -122.4340 }
-            },
-            {
-              id: 'feature-3',
-              type: 'restroom',
-              title: 'Accessible Restroom',
-              description: 'Ground floor accessible restroom',
-              coordinate: { latitude: 37.7838, longitude: -122.4335 }
-            }
-          ],
-          routes: [
-            {
-              id: 'route-1',
-              name: 'Entrance to Elevator',
-              description: 'Accessible route from main entrance to elevator',
-              points: [
-                { latitude: 37.7845, longitude: -122.4348 },
-                { latitude: 37.7844, longitude: -122.4345 },
-                { latitude: 37.7842, longitude: -122.4340 }
-              ]
-            },
-            {
-              id: 'route-2',
-              name: 'Elevator to Restroom',
-              description: 'Accessible route from elevator to restroom',
-              points: [
-                { latitude: 37.7842, longitude: -122.4340 },
-                { latitude: 37.7840, longitude: -122.4338 },
-                { latitude: 37.7838, longitude: -122.4335 }
-              ]
-            }
-          ]
-        },
-        {
-          id: 'floor-2',
-          level: 2,
-          name: 'First Floor',
-          floorPlanUri: 'https://example.com/floorplans/building1-floor2.png',
+          floorPlanUri: require('../assets/floorplans/inside_leadership_center_first_floor_plan-map_ALU.png'),
           scale: {
             pixelsPerMeter: 20
           },
           features: [
             {
-              id: 'feature-4',
+              id: 'elevator-ground',
               type: 'elevator',
               title: 'Main Elevator',
               description: 'Accessible elevator to all floors',
-              coordinate: { latitude: 37.7842, longitude: -122.4340 }
+              coordinate: { latitude: -1.9447, longitude: 30.0624 } // Approximate - adjust as needed
             },
             {
-              id: 'feature-5',
+              id: 'restroom-ground',
               type: 'restroom',
               title: 'Accessible Restroom',
-              description: 'First floor accessible restroom',
-              coordinate: { latitude: 37.7835, longitude: -122.4338 }
-            }
+              description: 'Ground floor accessible restroom near Wellness Center',
+              coordinate: { latitude: -1.9446, longitude: 30.0627 }
+            },
+            // Add other accessibility features like ramps, entrances, etc.
           ],
           routes: [
             {
-              id: 'route-3',
+              id: 'route-elevator-restroom-ground',
               name: 'Elevator to Restroom',
               description: 'Accessible route from elevator to restroom',
               points: [
-                { latitude: 37.7842, longitude: -122.4340 },
-                { latitude: 37.7838, longitude: -122.4339 },
-                { latitude: 37.7835, longitude: -122.4338 }
+                { latitude: -1.9447, longitude: 30.0624 }, // Elevator
+                { latitude: -1.9446, longitude: 30.0626 }, // Hallway point
+                { latitude: -1.9446, longitude: 30.0627 }  // Restroom
               ]
             }
           ]
-        }
-      ]
-    },
-    // Add the Leadership Center building with the floor plan you've added
-    {
-      id: 'building-2',
-      name: 'Leadership Center',
-      description: 'ALU Leadership Center with accessible facilities',
-      // These are example coordinates - you would need to replace with actual GPS coordinates
-      referenceCoordinates: {
-        topLeft: { latitude: 37.7860, longitude: -122.4360 },
-        topRight: { latitude: 37.7860, longitude: -122.4340 },
-        bottomLeft: { latitude: 37.7840, longitude: -122.4360 },
-        bottomRight: { latitude: 37.7840, longitude: -122.4340 }
-      },
-      floors: [
+        },
         {
-          id: 'leadership-floor-1',
-          level: 1,
-          name: 'Leadership Center Ground Floor',
-          // Use the local asset path for the floor plan you've added
-          floorPlanUri: require('../assets/floorplans/leadership_center_ground_floor_plan_ALU.png'),
+          id: 'leadership-floor-first',
+          level: 2,
+          name: 'First Floor',
+          floorPlanUri: require('../assets/floorplans/inside_leadership_center_first_floor_plan-map_ALU.png'),
           scale: {
-            pixelsPerMeter: 20 // This should be adjusted based on the actual scale of your floor plan
+            pixelsPerMeter: 20
           },
           features: [
             {
-              id: 'leadership-feature-1',
-              type: 'entrance',
-              title: 'Secondary Entrance',
-              description: 'Wheelchair accessible main entrance',
-              coordinate: { latitude: 37.7855, longitude: -122.4358 }
-            },
-            {
-              id: 'leadership-feature-2',
+              id: 'elevator-first',
               type: 'elevator',
-              title: 'Central Elevator',
+              title: 'Main Elevator',
               description: 'Accessible elevator to all floors',
-              coordinate: { latitude: 37.7850, longitude: -122.4350 }
+              coordinate: { latitude: -1.9447, longitude: 30.0624 }
             },
             {
-              id: 'leadership-feature-3',
+              id: 'restroom-first',
               type: 'restroom',
               title: 'Accessible Restroom',
-              description: 'Ground floor accessible restroom',
-              coordinate: { latitude: 37.7845, longitude: -122.4345 }
+              description: 'First floor accessible restroom near Mechanical Room',
+              coordinate: { latitude: -1.9445, longitude: 30.0628 }
             }
           ],
           routes: [
             {
-              id: 'leadership-route-1',
-              name: 'Entrance to Elevator',
-              description: 'Accessible route from secondary entrance to elevator, adjacent to the wellness. Elevator leads to 1st and 2nd floor',
+              id: 'route-elevator-wellness-first',
+              name: 'Elevator to Wellness Center',
+              description: 'Accessible route from elevator to Wellness Center',
               points: [
-                { latitude: 37.7855, longitude: -122.4358 },
-                { latitude: 37.7853, longitude: -122.4354 },
-                { latitude: 37.7850, longitude: -122.4350 }
-              ]
-            },
-            {
-              id: 'leadership-route-2',
-              name: 'Direct access to Restroom',
-              description: 'Accessible route to restroom, opposite the wellness center',
-              points: [
-                { latitude: 37.7850, longitude: -122.4350 },
-                { latitude: 37.7848, longitude: -122.4348 },
-                { latitude: 37.7845, longitude: -122.4345 }
+                { latitude: -1.9447, longitude: 30.0624 }, // Elevator
+                { latitude: -1.9446, longitude: 30.0626 }, // Hallway point
+                { latitude: -1.9445, longitude: 30.0627 }  // Wellness Center
               ]
             }
+          ]
+        },
+        {
+          id: 'leadership-floor-second',
+          level: 3,
+          name: 'Second Floor',
+          floorPlanUri: require('../assets/floorplans/inside_leadership_center_second_floor_plan-map_ALU.png'),
+          scale: {
+            pixelsPerMeter: 20
+          },
+          features: [
+            {
+              id: 'elevator-second',
+              type: 'elevator',
+              title: 'Main Elevator',
+              description: 'Accessible elevator to all floors',
+              coordinate: { latitude: -1.9447, longitude: 30.0624 }
+            }
+            // Add other features on this floor
+          ],
+          routes: [
+            // Add routes for this floor
           ]
         }
       ]

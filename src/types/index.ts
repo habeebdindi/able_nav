@@ -41,8 +41,8 @@ export interface Floor {
   name: string;
   features: AccessibilityFeature[];
   routes: AccessibleRoute[];
-  // Add the image URI for the floor plan
-  floorPlanUri: string;
+  // Allow both string URLs and require() assets
+  floorPlanUri: string | number | { uri: string };
   // Add scale information to convert pixels to real-world coordinates
   scale: {
     pixelsPerMeter: number;

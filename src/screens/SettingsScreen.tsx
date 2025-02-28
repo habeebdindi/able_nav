@@ -10,13 +10,17 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type SettingsScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
+  // We'll use hooks instead of props
 };
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
+const SettingsScreen: React.FC<SettingsScreenProps> = () => {
+  // Use the navigation hook from React Navigation 7
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Settings'>>();
+  
   // Settings state
   const [voiceNavigation, setVoiceNavigation] = useState(true);
   const [highContrast, setHighContrast] = useState(false);

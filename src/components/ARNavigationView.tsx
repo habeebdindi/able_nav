@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
-import { Camera, CameraType } from 'expo-camera';
+import { CameraView, Camera } from 'expo-camera';
 import * as Location from 'expo-location';
 import { ARNavigationPoint, ARNavigationPath, AccessibilityFeature, BuildingPlan, Floor } from '../types';
 import { getBuildingPlanById, getFloorById, coordinateToFloorPosition } from '../services/floorPlanService';
@@ -265,45 +265,47 @@ const ARNavigationView: React.FC<ARNavigationViewProps> = ({
     );
   }
 
-  if (hasPermission === false) {
-    return (
-      <View style={styles.container}>
-        <Text>No access to camera or location</Text>
-        <TouchableOpacity style={styles.button} onPress={onClose}>
-          <Text style={styles.buttonText}>Close</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <Camera style={styles.camera} type={CameraType.back}>
-        {renderARElements()}
-        
-        <View style={styles.controls}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>✕</Text>
+      {hasPermission ? (
+        <CameraView 
+          style={styles.camera} 
+          facing="back"
+          ratio="16:9"
+        >
+          {renderARElements()}
+          
+          <View style={styles.controls}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+            
+            {!isNavigating && destinationFeature && (
+              <TouchableOpacity style={styles.startButton} onPress={startNavigation}>
+                <Text style={styles.startButtonText}>
+                  Start Navigation to {destinationFeature.title}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {isNavigating && (
+              <TouchableOpacity
+                style={styles.stopButton}
+                onPress={() => setIsNavigating(false)}
+              >
+                <Text style={styles.stopButtonText}>Stop Navigation</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </CameraView>
+      ) : (
+        <View style={styles.container}>
+          <Text>No access to camera or location</Text>
+          <TouchableOpacity style={styles.button} onPress={onClose}>
+            <Text style={styles.buttonText}>Close</Text>
           </TouchableOpacity>
-          
-          {!isNavigating && destinationFeature && (
-            <TouchableOpacity style={styles.startButton} onPress={startNavigation}>
-              <Text style={styles.startButtonText}>
-                Start Navigation to {destinationFeature.title}
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          {isNavigating && (
-            <TouchableOpacity
-              style={styles.stopButton}
-              onPress={() => setIsNavigating(false)}
-            >
-              <Text style={styles.stopButtonText}>Stop Navigation</Text>
-            </TouchableOpacity>
-          )}
         </View>
-      </Camera>
+      )}
     </View>
   );
 };

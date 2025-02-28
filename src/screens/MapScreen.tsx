@@ -8,31 +8,34 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, PROVIDER_DEFAULT, Region } from 'react-native-maps';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import * as Location from 'expo-location';
 import { AccessibilityFeature, AccessibleRoute, BuildingPlan, Floor, IndoorPosition } from '../types';
-import { getAccessibilityFeatures, getAccessibleRoutes } from '../services/mockDataService';
+// import { getAccessibilityFeatures, getAccessibleRoutes } from '../services/mockDataService';
 import { loadBuildingPlans, getBuildingPlanById, coordinateToFloorPosition } from '../services/floorPlanService';
 import IndoorMapView from '../components/IndoorMapView';
 import ARNavigationView from '../components/ARNavigationView';
 
 type MapScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Map'>;
-  route: RouteProp<RootStackParamList, 'Map'>;
+  // We'll use hooks instead of props
 };
 
-const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
+const MapScreen: React.FC<MapScreenProps> = () => {
+  // Use the navigation and route hooks from React Navigation 7
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Map'>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Map'>>();
+  
   const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>({
-    latitude: route.params?.initialLocation?.latitude || 37.78825,
-    longitude: route.params?.initialLocation?.longitude || -122.4324,
-    latitudeDelta: 0.005,
-    longitudeDelta: 0.005,
+    latitude: route.params?.initialLocation?.latitude || -1.9441,
+    longitude: route.params?.initialLocation?.longitude || 30.0619,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [features, setFeatures] = useState<AccessibilityFeature[]>([]);
@@ -52,47 +55,74 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load accessibility data based on user's location
-    if (route.params?.initialLocation) {
-      const { latitude, longitude } = route.params.initialLocation;
-      
-      // Get accessibility features and routes from our mock service
-      const accessibilityFeatures = getAccessibilityFeatures(latitude, longitude);
-      const accessibleRoutes = getAccessibleRoutes(latitude, longitude);
-      
-      setFeatures(accessibilityFeatures);
-      setRoutes(accessibleRoutes);
-      
-      // Load building plans
-      const loadPlans = async () => {
-        try {
-          const plans = await loadBuildingPlans();
-          setBuildingPlans(plans);
-          
-          // Check if user is near any building
+    // Load building plans regardless of user location
+    const loadPlans = async () => {
+      try {
+        const plans = await loadBuildingPlans();
+        setBuildingPlans(plans);
+        
+        // If we have location data, check if user is near any building
+        if (route.params?.initialLocation) {
+          const { latitude, longitude } = route.params.initialLocation;
           const nearbyBuilding = findNearbyBuilding(latitude, longitude, plans);
           if (nearbyBuilding) {
             setSelectedBuilding(nearbyBuilding);
           }
-        } catch (error) {
-          console.error('Error loading building plans:', error);
+        } else {
+          // If no location data, just select the first building for testing
+          if (plans.length > 0) {
+            setSelectedBuilding(plans[0]);
+          }
         }
-        
-        setIsLoading(false);
-      };
+      } catch (error) {
+        console.error('Error loading building plans:', error);
+      }
       
-      loadPlans();
-    }
+      setIsLoading(false);
+    };
+    
+    loadPlans();
   }, [route.params?.initialLocation]);
 
-  // Find a building near the user's location
+  // Find a building near the user's location with expanded range
   const findNearbyBuilding = (
     latitude: number,
     longitude: number,
     buildings: BuildingPlan[]
   ): BuildingPlan | null => {
-    // In a real app, you would use a more sophisticated algorithm
-    // For now, we'll just check if the user is within the bounding box of any building
+    // Define a maximum distance in kilometers to consider a building "nearby"
+    const MAX_DISTANCE_KM = 2.0;
+    
+    // Helper function to calculate distance between two coordinates in km
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * (Math.PI / 180);
+      const dLon = (lon2 - lon1) * (Math.PI / 180);
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c; // Distance in km
+    };
+    
+    for (const building of buildings) {
+      // Calculate the center point of the building
+      const centerLat = (building.referenceCoordinates.topLeft.latitude + 
+                         building.referenceCoordinates.bottomRight.latitude) / 2;
+      const centerLon = (building.referenceCoordinates.topLeft.longitude + 
+                         building.referenceCoordinates.bottomRight.longitude) / 2;
+      
+      // Calculate distance from user to building center
+      const distance = calculateDistance(latitude, longitude, centerLat, centerLon);
+      
+      // If within our maximum distance, consider it nearby
+      if (distance <= MAX_DISTANCE_KM) {
+        return building;
+      }
+    }
+    
+    // If no building is within range, check if we're inside any building's bounds
     for (const building of buildings) {
       const { topLeft, bottomRight } = building.referenceCoordinates;
       
@@ -248,12 +278,36 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
         title={building.name}
         description={building.description}
         onPress={() => setSelectedBuilding(building)}
+        tracksViewChanges={false}
       >
         <View style={styles.buildingMarkerContainer}>
           <Text style={styles.buildingMarkerText}>🏢</Text>
         </View>
       </Marker>
     ));
+  };
+
+  // Add a function to zoom to buildings
+  const handleFindBuildings = () => {
+    if (buildingPlans.length > 0) {
+      // Get the first building's coordinates
+      const building = buildingPlans[0];
+      const centerLat = (building.referenceCoordinates.topLeft.latitude + 
+                         building.referenceCoordinates.bottomRight.latitude) / 2;
+      const centerLon = (building.referenceCoordinates.topLeft.longitude + 
+                         building.referenceCoordinates.bottomRight.longitude) / 2;
+      
+      // Animate to the building location
+      mapRef.current?.animateToRegion({
+        latitude: centerLat,
+        longitude: centerLon,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      
+      // Select the building
+      setSelectedBuilding(building);
+    }
   };
 
   return (
@@ -271,13 +325,14 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
               <MapView
                 ref={mapRef}
                 style={styles.map}
-                provider={PROVIDER_GOOGLE}
+                provider={Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE}
                 initialRegion={region}
                 showsUserLocation
                 showsMyLocationButton
                 showsCompass
                 showsScale
               >
+                {/* Comment out mock accessibility features 
                 {features.map((feature) => (
                   <Marker
                     key={feature.id}
@@ -285,13 +340,16 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
                     title={feature.title}
                     description={feature.description}
                     onPress={() => handleMarkerPress(feature)}
+                    tracksViewChanges={false}
                   >
                     <View style={styles.markerContainer}>
                       <Text style={styles.markerText}>{renderMarkerIcon(feature.type)}</Text>
                     </View>
                   </Marker>
                 ))}
+                */}
                 
+                {/* Keep building markers - this is what we want to test */}
                 {renderBuildingMarkers()}
                 
                 {selectedRoute && (
@@ -305,12 +363,13 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
               </MapView>
               
               <View style={styles.buttonContainer}>
+                {/* Add Find Buildings button */}
                 <TouchableOpacity 
-                  style={styles.routesButton}
-                  onPress={handleShowAllRoutes}
+                  style={styles.findBuildingsButton}
+                  onPress={handleFindBuildings}
                 >
-                  <Text style={styles.routesButtonText}>
-                    {showRoutesList ? 'Hide Routes' : 'Show Accessible Routes'}
+                  <Text style={styles.findBuildingsButtonText}>
+                    Find Buildings
                   </Text>
                 </TouchableOpacity>
                 
@@ -326,6 +385,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
                 )}
               </View>
               
+              {/* Comment out routes list since we're not using mock routes 
               {showRoutesList && (
                 <View style={styles.routesListContainer}>
                   <Text style={styles.routesListTitle}>Accessible Routes</Text>
@@ -343,6 +403,7 @@ const MapScreen: React.FC<MapScreenProps> = ({ navigation, route }) => {
                   </ScrollView>
                 </View>
               )}
+              */}
               
               {selectedFeature && !showRoutesList && (
                 <View style={styles.featureInfoCard}>
@@ -749,6 +810,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  findBuildingsButton: {
+    backgroundColor: '#4A80F0',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 1,
+  },
+  findBuildingsButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

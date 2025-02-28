@@ -2,13 +2,17 @@ import React from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type OnboardingScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
+  // We'll use hooks instead of props
 };
 
-const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
+const OnboardingScreen: React.FC<OnboardingScreenProps> = () => {
+  // Use the navigation hook from React Navigation 7
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Onboarding'>>();
+  
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
