@@ -1,23 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   Image,
   TouchableOpacity,
-  Dimensions,
   ScrollView,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
-import { PanGestureHandler, PinchGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
 import { BuildingPlan, Floor, AccessibilityFeature, AccessibleRoute, IndoorPosition, FeatureType } from '../types';
 import { 
   coordinateToFloorPosition, 
@@ -36,16 +28,6 @@ interface IndoorMapViewProps {
   selectedFeature?: AccessibilityFeature | null;
   selectedRoute?: AccessibleRoute | null;
 }
-
-// Define context types
-type PinchContext = {
-  startScale: number;
-};
-
-type PanContext = {
-  startX: number;
-  startY: number;
-};
 
 const IndoorMapView: React.FC<IndoorMapViewProps> = ({
   buildingPlan,
@@ -68,14 +50,6 @@ const IndoorMapView: React.FC<IndoorMapViewProps> = ({
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   // Enable test mode for development
   const [useTestMode] = useState(true);
-
-  // Animation values for pan and zoom
-  const scale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const lastScale = useSharedValue(1);
-  const lastTranslateX = useSharedValue(0);
-  const lastTranslateY = useSharedValue(0);
 
   // Load floor plan image dimensions
   useEffect(() => {
@@ -158,56 +132,8 @@ const IndoorMapView: React.FC<IndoorMapViewProps> = ({
           setIsLoading(false);
         }
       }
-      
-      // Reset pan and zoom when changing floors
-      scale.value = 1;
-      translateX.value = 0;
-      translateY.value = 0;
-      lastScale.value = 1;
-      lastTranslateX.value = 0;
-      lastTranslateY.value = 0;
     }
   }, [currentFloor, useTestMode]);
-
-  // Handle pinch gesture for zooming
-  const pinchHandler = useAnimatedGestureHandler({
-    onStart: (_: any, ctx: any) => {
-      ctx.startScale = scale.value;
-    },
-    onActive: (event: any, ctx: any) => {
-      scale.value = Math.max(0.5, Math.min(5, ctx.startScale * event.scale));
-    },
-    onEnd: () => {
-      lastScale.value = scale.value;
-    },
-  });
-
-  // Handle pan gesture for moving around the map
-  const panHandler = useAnimatedGestureHandler({
-    onStart: (_: any, ctx: any) => {
-      ctx.startX = translateX.value;
-      ctx.startY = translateY.value;
-    },
-    onActive: (event: any, ctx: any) => {
-      translateX.value = ctx.startX + event.translationX;
-      translateY.value = ctx.startY + event.translationY;
-    },
-    onEnd: () => {
-      lastTranslateX.value = translateX.value;
-      lastTranslateY.value = translateY.value;
-    },
-  });
-
-  // Animated styles for the map container
-  const animatedStyles = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
-      ],
-    };
-  });
 
   // Handle floor change
   const handleFloorChange = (floor: Floor) => {
@@ -584,7 +510,7 @@ const IndoorMapView: React.FC<IndoorMapViewProps> = ({
   };
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <View style={styles.container}>
       {/* Floor selector */}
       <ScrollView
         horizontal
@@ -615,32 +541,30 @@ const IndoorMapView: React.FC<IndoorMapViewProps> = ({
 
       {/* Map container */}
       <View style={styles.mapContainer}>
-        <PinchGestureHandler
-          onGestureEvent={pinchHandler}
-          onHandlerStateChange={pinchHandler}
+        {/* Enhanced ScrollView with horizontal and vertical scrolling */}
+        <ScrollView 
+          horizontal={true}
+          contentContainerStyle={styles.scrollContainer}
+          maximumZoomScale={3}
+          minimumZoomScale={0.5}
+          bouncesZoom={true}
+          showsHorizontalScrollIndicator={true}
+          showsVerticalScrollIndicator={true}
         >
-          <Animated.View style={styles.mapWrapper}>
-            <PanGestureHandler
-              onGestureEvent={panHandler}
-              onHandlerStateChange={panHandler}
-              minDist={10} // Add minimum distance to prevent accidental pans
-              avgTouches // Use average touches for smoother panning
-            >
-              <Animated.View style={[styles.floorPlanContainer, animatedStyles]}>
-                {/* Navigation View - Replace ImageBackground with a custom view */}
-                {renderNavigationView()}
-              </Animated.View>
-            </PanGestureHandler>
-          </Animated.View>
-        </PinchGestureHandler>
+          <ScrollView
+            contentContainerStyle={styles.innerScrollContainer}
+          >
+            {renderNavigationView()}
+          </ScrollView>
+        </ScrollView>
 
         {/* Map controls */}
         <View style={styles.mapControls}>
           <TouchableOpacity
             style={styles.controlButton}
             onPress={() => {
-              scale.value = withSpring(Math.min(scale.value + 0.5, 5));
-              lastScale.value = scale.value;
+              // No zoom functionality in this simplified version
+              Alert.alert('Info', 'Use pinch gesture to zoom in');
             }}
           >
             <Text style={styles.controlButtonText}>+</Text>
@@ -648,28 +572,15 @@ const IndoorMapView: React.FC<IndoorMapViewProps> = ({
           <TouchableOpacity
             style={styles.controlButton}
             onPress={() => {
-              scale.value = withSpring(Math.max(scale.value - 0.5, 0.5));
-              lastScale.value = scale.value;
+              // No zoom functionality in this simplified version
+              Alert.alert('Info', 'Use pinch gesture to zoom out');
             }}
           >
             <Text style={styles.controlButtonText}>-</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => {
-              scale.value = withSpring(1);
-              translateX.value = withSpring(0);
-              translateY.value = withSpring(0);
-              lastScale.value = 1;
-              lastTranslateX.value = 0;
-              lastTranslateY.value = 0;
-            }}
-          >
-            <Text style={styles.controlButtonText}>↺</Text>
-          </TouchableOpacity>
         </View>
       </View>
-    </GestureHandlerRootView>
+    </View>
   );
 };
 
@@ -691,6 +602,16 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
     position: 'relative',
+  },
+  scrollContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    minHeight: Dimensions.get('window').height,
+    minWidth: Dimensions.get('window').width,
+  },
+  innerScrollContainer: {
+    padding: 10,
   },
   floorSelector: {
     position: 'absolute',
@@ -723,13 +644,6 @@ const styles = StyleSheet.create({
   },
   selectedFloorButtonText: {
     color: '#fff',
-  },
-  mapWrapper: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  floorPlanContainer: {
-    padding: 16,
   },
   navigationView: {
     backgroundColor: '#f0f0f0',

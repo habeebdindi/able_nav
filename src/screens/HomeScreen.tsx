@@ -6,13 +6,15 @@ import {
   TouchableOpacity, 
   ScrollView, 
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import * as Location from 'expo-location';
+import { LocationService } from '../services/locationService';
 
 type HomeScreenProps = {
   // We'll use hooks instead of props
@@ -26,25 +28,102 @@ const HomeScreen: React.FC<HomeScreenProps> = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+  const getLocation = async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    
+    try {
+      // Check if location services are enabled
+      const servicesEnabled = await LocationService.isLocationServicesEnabled();
+      
+      if (!servicesEnabled) {
+        setErrorMsg('Location services are not enabled on your device');
+        
+        // Show alert with instructions for enabling location
+        Alert.alert(
+          'Location Services Disabled',
+          Platform.OS === 'android' 
+            ? 'Please enable location services in your device settings. For Android emulator, you can set a custom location from the extended controls (three dots menu).'
+            : 'Please enable location services in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Request permission with more detailed handling for Android
+      const hasPermission = await LocationService.requestLocationPermissions();
+      
+      // On Android, we might need to check permissions status more explicitly
+      if (Platform.OS === 'android' && !hasPermission) {
+        console.log('Permission not granted initially, showing rationale...');
+        
+        // Show rationale to the user before requesting again
+        Alert.alert(
+          'Location Permission Required',
+          'AbleNav needs access to your location to show accessible routes. Please grant location permission when prompted.',
+          [
+            { 
+              text: 'Try Again', 
+              onPress: async () => {
+                const newPermission = await LocationService.requestLocationPermissions();
+                if (!newPermission) {
+                  setErrorMsg('Location permission was denied. Please enable it in app settings.');
+                  setIsLoading(false);
+                } else {
+                  // Permission granted on retry, get location
+                  getLocation();
+                }
+              } 
+            },
+            { 
+              text: 'Cancel', 
+              onPress: () => {
+                setErrorMsg('Location permission was denied');
+                setIsLoading(false);
+              },
+              style: 'cancel' 
+            }
+          ]
+        );
+        return;
+      }
+      
+      if (!hasPermission) {
         setErrorMsg('Permission to access location was denied');
         return;
       }
 
-      try {
-        setIsLoading(true);
-        let location = await Location.getCurrentPositionAsync({});
+      // Get location using our service
+      const location = await LocationService.getCurrentLocation();
+      
+      if (location) {
         setLocation(location);
-      } catch (error) {
-        setErrorMsg('Could not get your location');
-        console.error(error);
-      } finally {
-        setIsLoading(false);
+      } else {
+        // If we're on an emulator, use mock location for testing
+        if (__DEV__ && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+          console.log('Using mock location for development');
+          setLocation(LocationService.getMockLocation());
+        } else {
+          setErrorMsg('Could not get your location. Please make sure location services are enabled and you are not in airplane mode.');
+        }
       }
-    })();
+    } catch (error) {
+      console.error('Error in location process:', error);
+      setErrorMsg('Could not get your location. Please make sure location services are enabled.');
+      
+      // In development, use mock location as fallback
+      if (__DEV__) {
+        console.log('Using mock location as fallback in development');
+        setLocation(LocationService.getMockLocation());
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial location request
+  useEffect(() => {
+    getLocation();
   }, []);
 
   const handleNavigateToMap = () => {
@@ -62,6 +141,11 @@ const HomeScreen: React.FC<HomeScreenProps> = () => {
         [{ text: 'OK' }]
       );
     }
+  };
+
+  // Add a retry button for location
+  const handleRetryLocation = () => {
+    getLocation();
   };
 
   return (
@@ -83,7 +167,7 @@ const HomeScreen: React.FC<HomeScreenProps> = () => {
               <Text style={styles.errorText}>{errorMsg}</Text>
               <TouchableOpacity 
                 style={styles.retryButton}
-                onPress={() => navigation.replace('Home')}
+                onPress={handleRetryLocation}
               >
                 <Text style={styles.retryButtonText}>Retry</Text>
               </TouchableOpacity>

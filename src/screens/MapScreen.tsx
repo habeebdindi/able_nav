@@ -20,6 +20,8 @@ import { AccessibilityFeature, AccessibleRoute, BuildingPlan, Floor, IndoorPosit
 import { loadBuildingPlans, getBuildingPlanById, coordinateToFloorPosition } from '../services/floorPlanService';
 import IndoorMapView from '../components/IndoorMapView';
 import ARNavigationView from '../components/ARNavigationView';
+import { LocationService } from '../services/locationService';
+import * as Location from 'expo-location';
 
 type MapScreenProps = {
   // We'll use hooks instead of props
@@ -32,8 +34,8 @@ const MapScreen: React.FC<MapScreenProps> = () => {
   
   const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>({
-    latitude: route.params?.initialLocation?.latitude || -1.9441,
-    longitude: route.params?.initialLocation?.longitude || 30.0619,
+    latitude: route.params?.initialLocation?.latitude || -1.9306162,
+    longitude: route.params?.initialLocation?.longitude || 30.1529425,
     latitudeDelta: 0.02,
     longitudeDelta: 0.02,
   });
@@ -53,6 +55,11 @@ const MapScreen: React.FC<MapScreenProps> = () => {
   // AR navigation state
   const [showARNavigation, setShowARNavigation] = useState(false);
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
+  
+  // Feature prompt modal state
+  const [showFeaturePrompt, setShowFeaturePrompt] = useState(false);
+
+  const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
     // Load building plans regardless of user location
@@ -69,9 +76,39 @@ const MapScreen: React.FC<MapScreenProps> = () => {
             setSelectedBuilding(nearbyBuilding);
           }
         } else {
-          // If no location data, just select the first building for testing
-          if (plans.length > 0) {
-            setSelectedBuilding(plans[0]);
+          // If no location data, try to get current location
+          try {
+            const currentLocation = await LocationService.getCurrentLocation();
+            if (currentLocation) {
+              const nearbyBuilding = findNearbyBuilding(
+                currentLocation.coords.latitude,
+                currentLocation.coords.longitude,
+                plans
+              );
+              if (nearbyBuilding) {
+                setSelectedBuilding(nearbyBuilding);
+              }
+            } else if (__DEV__) {
+              // In development, use mock location
+              const mockLocation = LocationService.getMockLocation();
+              const nearbyBuilding = findNearbyBuilding(
+                mockLocation.coords.latitude,
+                mockLocation.coords.longitude,
+                plans
+              );
+              if (nearbyBuilding) {
+                setSelectedBuilding(nearbyBuilding);
+              } else if (plans.length > 0) {
+                // If no nearby building found with mock location, just select the first building for testing
+                setSelectedBuilding(plans[0]);
+              }
+            }
+          } catch (error) {
+            console.error('Error getting current location:', error);
+            // If no location data, just select the first building for testing
+            if (plans.length > 0) {
+              setSelectedBuilding(plans[0]);
+            }
           }
         }
       } catch (error) {
@@ -206,19 +243,51 @@ const MapScreen: React.FC<MapScreenProps> = () => {
         setSelectedFloorId(selectedBuilding.floors[0].id);
       }
       
-      // Convert user's current location to indoor position
-      if (route.params?.initialLocation && selectedFloorId) {
-        const { latitude, longitude } = route.params.initialLocation;
-        const position = coordinateToFloorPosition(
-          { latitude, longitude },
-          selectedBuilding.id,
-          selectedFloorId
+      // Start location tracking
+      const startLocationTracking = async () => {
+        // Clear any existing subscription
+        if (locationSubscription) {
+          locationSubscription.remove();
+        }
+        
+        // Start a new subscription
+        const subscription = await LocationService.watchLocation(
+          (location) => {
+            console.log('Location update received:', location);
+            // We'll use the location in the floor detection effect
+          },
+          (error) => {
+            console.error('Error watching location:', error);
+          }
         );
         
-        if (position) {
-          setUserIndoorPosition(position);
+        if (subscription) {
+          setLocationSubscription(subscription);
+        } else {
+          console.warn('Failed to start location tracking');
+          
+          // In development, use mock location
+          if (__DEV__) {
+            const mockLocation = LocationService.getMockLocation();
+            const floorId = selectedBuilding.floors[0].id;
+            const position = coordinateToFloorPosition(
+              { 
+                latitude: mockLocation.coords.latitude, 
+                longitude: mockLocation.coords.longitude 
+              },
+              selectedBuilding.id,
+              floorId
+            );
+            
+            if (position) {
+              console.log('Using mock indoor position:', position);
+              setUserIndoorPosition(position);
+            }
+          }
         }
-      }
+      };
+      
+      startLocationTracking();
     }
   };
 
@@ -226,10 +295,17 @@ const MapScreen: React.FC<MapScreenProps> = () => {
     setShowIndoorMap(false);
     setSelectedFloorId(null);
     setUserIndoorPosition(null);
+    
+    // Clean up location subscription
+    if (locationSubscription) {
+      locationSubscription.remove();
+      setLocationSubscription(null);
+    }
   };
 
   const handleIndoorFeaturePress = (feature: AccessibilityFeature) => {
     setSelectedFeature(feature);
+    setShowFeaturePrompt(true); // Show the prompt when a feature is selected
   };
 
   const handleIndoorRoutePress = (route: AccessibleRoute) => {
@@ -287,7 +363,7 @@ const MapScreen: React.FC<MapScreenProps> = () => {
     ));
   };
 
-  // Add a function to zoom to buildings
+  // Add a function to zoom to buildings with enhanced user experience
   const handleFindBuildings = () => {
     if (buildingPlans.length > 0) {
       // Get the first building's coordinates
@@ -297,18 +373,144 @@ const MapScreen: React.FC<MapScreenProps> = () => {
       const centerLon = (building.referenceCoordinates.topLeft.longitude + 
                          building.referenceCoordinates.bottomRight.longitude) / 2;
       
-      // Animate to the building location
+      // Helper function to calculate distance between two coordinates in km
+      const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * (Math.PI / 180);
+        const dLon = (lon2 - lon1) * (Math.PI / 180);
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; // Distance in km
+      };
+      
+      // Calculate appropriate zoom level based on building size
+      const latDelta = Math.abs(building.referenceCoordinates.bottomLeft.latitude - 
+                               building.referenceCoordinates.topLeft.latitude) * 1.5; // 1.5x for padding
+      const lonDelta = Math.abs(building.referenceCoordinates.topRight.longitude - 
+                               building.referenceCoordinates.topLeft.longitude) * 1.5; // 1.5x for padding
+      
+      // Ensure minimum zoom level for visibility
+      const minDelta = 0.003; // Approximately 300m
+      
+      // Animate to the building location with appropriate zoom level
       mapRef.current?.animateToRegion({
         latitude: centerLat,
         longitude: centerLon,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+        latitudeDelta: Math.max(latDelta, minDelta),
+        longitudeDelta: Math.max(lonDelta, minDelta),
+      }, 1000); // 1 second animation
       
       // Select the building
       setSelectedBuilding(building);
+      
+      // Check if user is close to the building before showing "Building Found" alert
+      LocationService.getCurrentLocation().then(location => {
+        if (location) {
+          const userLat = location.coords.latitude;
+          const userLon = location.coords.longitude;
+          
+          // Calculate distance from user to building
+          const distance = calculateDistance(userLat, userLon, centerLat, centerLon);
+          
+          if (distance <= 0.2) { // 200 meters
+            // Show a brief message to the user
+            Alert.alert(
+              'Building Found',
+              `${building.name} has been located. Tap "Enter ${building.name}" to explore inside.`,
+              [{ text: 'OK' }]
+            );
+          } else {
+            // Show a different message when building is far away
+            Alert.alert(
+              'Building Located',
+              `${building.name} has been located on the map, but you are ${distance.toFixed(1)}km away.`,
+              [{ text: 'OK' }]
+            );
+          }
+        }
+      }).catch(error => {
+        console.error('Error getting current location:', error);
+        // Default message if location can't be determined
+        Alert.alert(
+          'Building Located',
+          `${building.name} has been located on the map.`,
+          [{ text: 'OK' }]
+        );
+      });
+    } else {
+      Alert.alert(
+        'No Buildings Found',
+        'No accessible buildings are available in this area.',
+        [{ text: 'OK' }]
+      );
     }
   };
+
+  // Function to detect which floor the user is on
+  const detectUserFloor = (building: BuildingPlan, location: Location.LocationObject): string | null => {
+    // In a real app, this would use barometric pressure, WiFi signal strength, or beacons
+    // For this demo, we'll use a simple algorithm based on mock data
+    
+    // For development/testing, cycle through floors every 10 seconds
+    if (__DEV__) {
+      const floorIndex = Math.floor(Date.now() / 10000) % building.floors.length;
+      return building.floors[floorIndex].id;
+    }
+    
+    // In a real app, you would implement actual floor detection logic here
+    // For now, just return the first floor
+    return building.floors[0].id;
+  };
+
+  // Update the indoor position and floor when location changes
+  useEffect(() => {
+    if (showIndoorMap && selectedBuilding && locationSubscription) {
+      // Get current location
+      const getCurrentLocation = async () => {
+        try {
+          const location = await LocationService.getCurrentLocation();
+          if (location && selectedBuilding) {
+            // Detect which floor the user is on
+            const detectedFloorId = detectUserFloor(selectedBuilding, location);
+            
+            if (detectedFloorId && detectedFloorId !== selectedFloorId) {
+              console.log(`Detected user on floor: ${detectedFloorId}`);
+              setSelectedFloorId(detectedFloorId);
+            }
+            
+            // Update user position on the current floor
+            if (detectedFloorId) {
+              const position = coordinateToFloorPosition(
+                { 
+                  latitude: location.coords.latitude, 
+                  longitude: location.coords.longitude 
+                },
+                selectedBuilding.id,
+                detectedFloorId
+              );
+              
+              if (position) {
+                setUserIndoorPosition(position);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error getting current location for floor detection:', error);
+        }
+      };
+      
+      // Update every 5 seconds
+      const intervalId = setInterval(getCurrentLocation, 5000);
+      
+      // Initial call
+      getCurrentLocation();
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [showIndoorMap, selectedBuilding, selectedFloorId, locationSubscription]);
 
   return (
     <View style={styles.container}>
@@ -499,8 +701,11 @@ const MapScreen: React.FC<MapScreenProps> = () => {
                 <View style={styles.indoorFeatureInfoCard}>
                   <View style={styles.featureHeader}>
                     <Text style={styles.featureTitle}>{selectedFeature.title}</Text>
-                    <Text style={styles.featureType}>{selectedFeature.type.toUpperCase()}</Text>
+                    <TouchableOpacity onPress={() => setSelectedFeature(null)}>
+                      <Text style={styles.closeButton}>✕</Text>
+                    </TouchableOpacity>
                   </View>
+                  <Text style={styles.featureType}>{selectedFeature.type.toUpperCase()}</Text>
                   <Text style={styles.featureDescription}>{selectedFeature.description}</Text>
                   <TouchableOpacity 
                     style={styles.arButton}
@@ -510,6 +715,48 @@ const MapScreen: React.FC<MapScreenProps> = () => {
                   </TouchableOpacity>
                 </View>
               )}
+              
+              {/* Feature Prompt Modal */}
+              <Modal
+                visible={showFeaturePrompt}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowFeaturePrompt(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.modalOverlay}
+                  activeOpacity={1}
+                  onPress={() => setShowFeaturePrompt(false)}
+                >
+                  <View 
+                    style={styles.featurePromptContainer}
+                    // This prevents touches from propagating to the parent
+                    onStartShouldSetResponder={() => true}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                  >
+                    {selectedFeature && (
+                      <>
+                        <Text style={styles.promptTitle}>{selectedFeature.title}</Text>
+                        <TouchableOpacity 
+                          style={styles.promptButton}
+                          onPress={() => {
+                            setShowFeaturePrompt(false);
+                            handleStartARNavigation();
+                          }}
+                        >
+                          <Text style={styles.promptButtonText}>AR Navigation</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.promptCloseButton}
+                          onPress={() => setShowFeaturePrompt(false)}
+                        >
+                          <Text style={styles.promptCloseButtonText}>Close</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
             </>
           )}
           
@@ -786,12 +1033,13 @@ const styles = StyleSheet.create({
   },
   exitBuildingButton: {
     position: 'absolute',
-    top: 16,
+    bottom: 16,
     left: 16,
     backgroundColor: '#FF4500',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
+    zIndex: 10,
   },
   exitBuildingButtonText: {
     color: '#FFF',
@@ -799,7 +1047,7 @@ const styles = StyleSheet.create({
   },
   indoorFeatureInfoCard: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 80,
     left: 16,
     right: 16,
     backgroundColor: '#FFF',
@@ -810,6 +1058,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    zIndex: 15,
   },
   findBuildingsButton: {
     backgroundColor: '#4A80F0',
@@ -820,6 +1069,50 @@ const styles = StyleSheet.create({
   },
   findBuildingsButtonText: {
     color: '#FFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featurePromptContainer: {
+    backgroundColor: '#FFF',
+    padding: 20,
+    borderRadius: 10,
+    maxWidth: '80%',
+    maxHeight: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promptTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#333',
+  },
+  promptButton: {
+    backgroundColor: '#4A80F0',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  promptButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  promptCloseButton: {
+    backgroundColor: '#999',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  promptCloseButtonText: {
+    color: '#333',
     fontWeight: '600',
     textAlign: 'center',
   },

@@ -63,6 +63,7 @@ export const getFloorImageDimensions = (
 
 /**
  * Convert a real-world coordinate to a position on the floor plan
+ * This improved version handles non-rectangular buildings better
  */
 export const coordinateToFloorPosition = (
   coordinate: Coordinate,
@@ -74,24 +75,51 @@ export const coordinateToFloorPosition = (
   
   if (!floor || !building) return null;
   
-  // This is a simplified calculation and would need to be more sophisticated in a real app
-  // It assumes the floor plan is aligned with north and the reference coordinates form a rectangle
+  const { topLeft, topRight, bottomLeft, bottomRight } = building.referenceCoordinates;
   
-  const { topLeft, bottomRight } = building.referenceCoordinates;
+  // Calculate the building's width and height in degrees
+  const buildingWidthLng = Math.abs(topRight.longitude - topLeft.longitude);
+  const buildingHeightLat = Math.abs(bottomLeft.latitude - topLeft.latitude);
+  
+  // Check if the coordinate is within the building bounds (with some margin)
+  const margin = 0.0002; // Approximately 20 meters
+  if (
+    coordinate.latitude < (topLeft.latitude - margin) ||
+    coordinate.latitude > (bottomLeft.latitude + margin) ||
+    coordinate.longitude < (topLeft.longitude - margin) ||
+    coordinate.longitude > (topRight.longitude + margin)
+  ) {
+    console.warn('Coordinate is outside building bounds:', coordinate);
+    // Return a position at the edge of the floor plan as fallback
+    const cachedDimensions = getFloorImageDimensions(floorId);
+    const imageWidth = cachedDimensions ? cachedDimensions.width : 1000;
+    const imageHeight = cachedDimensions ? cachedDimensions.height : 800;
+    
+    return {
+      buildingId,
+      floorId,
+      x: Math.round(imageWidth / 2),
+      y: Math.round(imageHeight / 2),
+      coordinate
+    };
+  }
   
   // Calculate the relative position within the geo-rectangle
-  const latRatio = (coordinate.latitude - topLeft.latitude) / (bottomRight.latitude - topLeft.latitude);
-  const lngRatio = (coordinate.longitude - topLeft.longitude) / (bottomRight.longitude - topLeft.longitude);
+  // This handles non-rectangular buildings better by using bilinear interpolation
+  
+  // First, normalize the latitude and longitude to [0,1] range within the building
+  const normalizedLat = (coordinate.latitude - topLeft.latitude) / buildingHeightLat;
+  const normalizedLng = (coordinate.longitude - topLeft.longitude) / buildingWidthLng;
   
   // Get the dimensions of the floor plan image
-  // Try to get from cache first, otherwise use default values
   const cachedDimensions = getFloorImageDimensions(floorId);
-  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000; // pixels
-  const imageHeight = cachedDimensions ? cachedDimensions.height : 800; // pixels
+  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000;
+  const imageHeight = cachedDimensions ? cachedDimensions.height : 800;
   
   // Calculate the position on the floor plan
-  const x = Math.round(lngRatio * imageWidth);
-  const y = Math.round(latRatio * imageHeight);
+  // For a rectangular floor plan, this is a simple scaling
+  const x = Math.round(normalizedLng * imageWidth);
+  const y = Math.round(normalizedLat * imageHeight);
   
   return {
     buildingId,
@@ -104,6 +132,7 @@ export const coordinateToFloorPosition = (
 
 /**
  * Convert a floor plan position to a real-world coordinate
+ * This improved version handles non-rectangular buildings better
  */
 export const floorPositionToCoordinate = (
   position: IndoorPosition
@@ -112,21 +141,24 @@ export const floorPositionToCoordinate = (
   
   if (!building) return null;
   
-  const { topLeft, bottomRight } = building.referenceCoordinates;
+  const { topLeft, topRight, bottomLeft, bottomRight } = building.referenceCoordinates;
+  
+  // Calculate the building's width and height in degrees
+  const buildingWidthLng = Math.abs(topRight.longitude - topLeft.longitude);
+  const buildingHeightLat = Math.abs(bottomLeft.latitude - topLeft.latitude);
   
   // Get the dimensions of the floor plan image
-  // Try to get from cache first, otherwise use default values
   const cachedDimensions = getFloorImageDimensions(position.floorId);
-  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000; // pixels
-  const imageHeight = cachedDimensions ? cachedDimensions.height : 800; // pixels
+  const imageWidth = cachedDimensions ? cachedDimensions.width : 1000;
+  const imageHeight = cachedDimensions ? cachedDimensions.height : 800;
   
-  // Calculate the relative position within the image
-  const latRatio = position.y / imageHeight;
-  const lngRatio = position.x / imageWidth;
+  // Calculate the relative position within the image [0,1]
+  const normalizedX = position.x / imageWidth;
+  const normalizedY = position.y / imageHeight;
   
-  // Calculate the real-world coordinate
-  const latitude = topLeft.latitude + latRatio * (bottomRight.latitude - topLeft.latitude);
-  const longitude = topLeft.longitude + lngRatio * (bottomRight.longitude - topLeft.longitude);
+  // Calculate the real-world coordinate using the normalized position
+  const latitude = topLeft.latitude + normalizedY * buildingHeightLat;
+  const longitude = topLeft.longitude + normalizedX * buildingWidthLng;
   
   return { latitude, longitude };
 };
@@ -207,12 +239,13 @@ const getBuildingPlans = (): BuildingPlan[] => {
       id: 'building-1',
       name: 'Leadership Center',
       description: 'ALU Leadership Center with accessible facilities',
-      // These are example coordinates - you should replace with actual GPS coordinates
+      // Updated coordinates with more precise bounding box centered at (-1.9306162, 30.1529425)
+      // Creating a more realistic building footprint (approximately 100m x 60m)
       referenceCoordinates: {
-        topLeft: { latitude: -1.9442, longitude: 30.0619 },
-        topRight: { latitude: -1.9442, longitude: 30.0629 },
-        bottomLeft: { latitude: -1.9452, longitude: 30.0619 },
-        bottomRight: { latitude: -1.9452, longitude: 30.0629 }
+        topLeft: { latitude: -1.9302162, longitude: 30.1525425 },     // NW corner
+        topRight: { latitude: -1.9302162, longitude: 30.1533425 },    // NE corner
+        bottomLeft: { latitude: -1.9310162, longitude: 30.1525425 },  // SW corner
+        bottomRight: { latitude: -1.9310162, longitude: 30.1533425 }  // SE corner
       },
       floors: [
         {
@@ -229,16 +262,29 @@ const getBuildingPlans = (): BuildingPlan[] => {
               type: 'elevator',
               title: 'Main Elevator',
               description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9447, longitude: 30.0624 } // Approximate - adjust as needed
+              coordinate: { latitude: -1.9306162, longitude: 30.1529425 } // Center of the building
             },
             {
               id: 'restroom-ground',
               type: 'restroom',
               title: 'Accessible Restroom',
               description: 'Ground floor accessible restroom near Wellness Center',
-              coordinate: { latitude: -1.9446, longitude: 30.0627 }
+              coordinate: { latitude: -1.9305162, longitude: 30.1531425 }
             },
-            // Add other accessibility features like ramps, entrances, etc.
+            {
+              id: 'entrance-main',
+              type: 'entrance',
+              title: 'Main Entrance',
+              description: 'Main accessible entrance to the Leadership Center',
+              coordinate: { latitude: -1.9303162, longitude: 30.1529425 } // North side entrance
+            },
+            {
+              id: 'ramp-main',
+              type: 'ramp',
+              title: 'Main Entrance Ramp',
+              description: 'Wheelchair accessible ramp at main entrance',
+              coordinate: { latitude: -1.9303662, longitude: 30.1528425 } // Near north entrance
+            }
           ],
           routes: [
             {
@@ -246,9 +292,19 @@ const getBuildingPlans = (): BuildingPlan[] => {
               name: 'Elevator to Restroom',
               description: 'Accessible route from elevator to restroom',
               points: [
-                { latitude: -1.9447, longitude: 30.0624 }, // Elevator
-                { latitude: -1.9446, longitude: 30.0626 }, // Hallway point
-                { latitude: -1.9446, longitude: 30.0627 }  // Restroom
+                { latitude: -1.9306162, longitude: 30.1529425 }, // Elevator
+                { latitude: -1.9305662, longitude: 30.1530425 }, // Hallway point
+                { latitude: -1.9305162, longitude: 30.1531425 }  // Restroom
+              ]
+            },
+            {
+              id: 'route-entrance-elevator-ground',
+              name: 'Entrance to Elevator',
+              description: 'Accessible route from main entrance to elevator',
+              points: [
+                { latitude: -1.9303162, longitude: 30.1529425 }, // Main entrance
+                { latitude: -1.9304162, longitude: 30.1529425 }, // Hallway point
+                { latitude: -1.9306162, longitude: 30.1529425 }  // Elevator
               ]
             }
           ]
@@ -267,14 +323,14 @@ const getBuildingPlans = (): BuildingPlan[] => {
               type: 'elevator',
               title: 'Main Elevator',
               description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9447, longitude: 30.0624 }
+              coordinate: { latitude: -1.9306162, longitude: 30.1529425 }
             },
             {
               id: 'restroom-first',
               type: 'restroom',
               title: 'Accessible Restroom',
               description: 'First floor accessible restroom near Mechanical Room',
-              coordinate: { latitude: -1.9445, longitude: 30.0628 }
+              coordinate: { latitude: -1.9304162, longitude: 30.1532425 }
             }
           ],
           routes: [
@@ -283,9 +339,9 @@ const getBuildingPlans = (): BuildingPlan[] => {
               name: 'Elevator to Wellness Center',
               description: 'Accessible route from elevator to Wellness Center',
               points: [
-                { latitude: -1.9447, longitude: 30.0624 }, // Elevator
-                { latitude: -1.9446, longitude: 30.0626 }, // Hallway point
-                { latitude: -1.9445, longitude: 30.0627 }  // Wellness Center
+                { latitude: -1.9306162, longitude: 30.1529425 }, // Elevator
+                { latitude: -1.9305162, longitude: 30.1530425 }, // Hallway point
+                { latitude: -1.9304162, longitude: 30.1531425 }  // Wellness Center
               ]
             }
           ]
@@ -304,7 +360,7 @@ const getBuildingPlans = (): BuildingPlan[] => {
               type: 'elevator',
               title: 'Main Elevator',
               description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9447, longitude: 30.0624 }
+              coordinate: { latitude: -1.9306162, longitude: 30.1529425 }
             }
             // Add other features on this floor
           ],

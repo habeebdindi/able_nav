@@ -251,6 +251,55 @@ const ARNavigationView: React.FC<ARNavigationViewProps> = ({
             <Text style={styles.navigationText}>
               Follow the blue path to your destination
             </Text>
+            
+            {/* Add directional arrows - this is a simplified version without true AR */}
+            <View style={styles.directionalGuidance}>
+              <View style={styles.arrowContainer}>
+                <Text style={styles.arrowIcon}>⬆️</Text>
+                <Text style={styles.arrowLabel}>10m ahead</Text>
+              </View>
+              
+              {/* Show distance to destination */}
+              <View style={styles.distanceContainer}>
+                <Text style={styles.distanceText}>
+                  {currentLocation && destinationFeature?.coordinate ? 
+                    `${calculateDistance(
+                      currentLocation.coords.latitude,
+                      currentLocation.coords.longitude,
+                      destinationFeature.coordinate.latitude,
+                      destinationFeature.coordinate.longitude
+                    ).toFixed(1)} meters to destination` : 
+                    'Calculating distance...'}
+                </Text>
+              </View>
+              
+              {/* Add turn-by-turn instructions */}
+              <View style={styles.instructionsContainer}>
+                <Text style={styles.instructionText}>
+                  {arPaths.length > 0 ? 'Turn right at the next corner' : 'Proceed straight ahead'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+        
+        {/* Add AR path visualization (simplified) */}
+        {isNavigating && arPaths.length > 0 && (
+          <View style={styles.arPathVisualization}>
+            {arPaths.map((path, index) => (
+              <View 
+                key={`path-${index}`} 
+                style={[
+                  styles.arPathSegment,
+                  { 
+                    width: 20, 
+                    height: 20,
+                    bottom: 100 + (index * 40),
+                    left: '50%'
+                  }
+                ]}
+              />
+            ))}
           </View>
         )}
       </View>
@@ -415,6 +464,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  directionalGuidance: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  arrowContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  arrowIcon: {
+    fontSize: 40,
+  },
+  arrowLabel: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  distanceContainer: {
+    marginVertical: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  distanceText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  instructionsContainer: {
+    marginTop: 10,
+    backgroundColor: 'rgba(74, 128, 240, 0.7)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  instructionText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  arPathVisualization: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+  },
+  arPathSegment: {
+    position: 'absolute',
+    backgroundColor: 'rgba(74, 128, 240, 0.7)',
+    borderRadius: 10,
   },
 });
 
