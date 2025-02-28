@@ -674,6 +674,51 @@ const MapScreen: React.FC<MapScreenProps> = () => {
                   <Text style={styles.legendText}>Building with Indoor Map</Text>
                 </View>
               </View>
+              
+              {/* Development Tools UI */}
+              {__DEV__ && (
+                <View style={styles.devTools}>
+                  <Text style={styles.devToolsTitle}>Development Tools</Text>
+                  
+                  {selectedBuilding && selectedFloorId && (
+                    <TouchableOpacity
+                      style={styles.mapperButton}
+                      onPress={() => {
+                        navigation.navigate('FloorPlanMapper', {
+                          buildingId: selectedBuilding.id,
+                          floorId: selectedFloorId
+                        });
+                      }}
+                    >
+                      <Text style={styles.mapperButtonText}>
+                        Edit Floor Plan Features
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  {selectedBuilding && !selectedFloorId && (
+                    <TouchableOpacity
+                      style={styles.mapperButton}
+                      onPress={() => {
+                        // If no floor is selected, use the first floor
+                        const firstFloor = selectedBuilding.floors[0];
+                        if (firstFloor) {
+                          navigation.navigate('FloorPlanMapper', {
+                            buildingId: selectedBuilding.id,
+                            floorId: firstFloor.id
+                          });
+                        } else {
+                          Alert.alert('Error', 'No floors available for this building');
+                        }
+                      }}
+                    >
+                      <Text style={styles.mapperButtonText}>
+                        Edit Building Features
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </>
           ) : (
             // Indoor map view
@@ -1114,6 +1159,35 @@ const styles = StyleSheet.create({
   promptCloseButtonText: {
     color: '#333',
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Development Tools Styles
+  devTools: {
+    position: 'absolute',
+    top: 300,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 8,
+    padding: 12,
+    width: 180,
+  },
+  devToolsTitle: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  mapperButton: {
+    backgroundColor: '#F06292',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginVertical: 4,
+  },
+  mapperButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 12,
     textAlign: 'center',
   },
 });

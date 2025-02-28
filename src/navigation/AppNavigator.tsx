@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 // Import screens from barrel file
 import { HomeScreen, MapScreen, SettingsScreen, OnboardingScreen } from '../screens';
+import FloorPlanMapperScreen from '../screens/FloorPlanMapperScreen';
 
 // Define the type for our stack navigator
 export type RootStackParamList = {
@@ -11,6 +12,7 @@ export type RootStackParamList = {
   Home: undefined;
   Map: { initialLocation?: { latitude: number; longitude: number } };
   Settings: undefined;
+  FloorPlanMapper: { buildingId: string, floorId: string }; // Add the new screen
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -50,9 +52,14 @@ export const AppNavigator = () => {
           component={SettingsScreen} 
           options={{ title: 'Settings' }}
         />
+        <Stack.Screen
+          name="FloorPlanMapper"
+          component={FloorPlanMapperScreen}
+          options={{ title: 'Floor Plan Mapper' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
-export default AppNavigator; 
+export default AppNavigator;

@@ -63,7 +63,6 @@ export const getFloorImageDimensions = (
 
 /**
  * Convert a real-world coordinate to a position on the floor plan
- * This improved version handles non-rectangular buildings better
  */
 export const coordinateToFloorPosition = (
   coordinate: Coordinate,
@@ -132,7 +131,6 @@ export const coordinateToFloorPosition = (
 
 /**
  * Convert a floor plan position to a real-world coordinate
- * This improved version handles non-rectangular buildings better
  */
 export const floorPositionToCoordinate = (
   position: IndoorPosition
@@ -231,80 +229,130 @@ export const addAccessibleRoute = (
 };
 
 /**
- * Mock building plans for testing
+ * Detailed building plans for ALU Leadership Center
+ * Based on architectural drawings
  */
 const getBuildingPlans = (): BuildingPlan[] => {
   return [
     {
-      id: 'building-1',
-      name: 'Leadership Center',
-      description: 'ALU Leadership Center with accessible facilities',
-      // Updated coordinates with more precise bounding box centered at (-1.9306162, 30.1529425)
-      // Creating a more realistic building footprint (approximately 100m x 60m)
+      id: 'leadership-center',
+      name: 'ALU Leadership Center',
+      description: 'Learning Commons with accessible facilities',
+      // GPS coordinates for the corners of the building
       referenceCoordinates: {
-        topLeft: { latitude: -1.9302162, longitude: 30.1525425 },     // NW corner
-        topRight: { latitude: -1.9302162, longitude: 30.1533425 },    // NE corner
-        bottomLeft: { latitude: -1.9310162, longitude: 30.1525425 },  // SW corner
-        bottomRight: { latitude: -1.9310162, longitude: 30.1533425 }  // SE corner
+        topLeft: {
+          latitude: -1.9307796622349982,
+          longitude: 30.15263934189284
+        },
+        topRight: {
+          latitude: -1.9307796622349982,
+          longitude: 30.153160658107158
+        },
+        bottomLeft: {
+          latitude: -1.930420337765002,
+          longitude: 30.15263934189284
+        },
+        bottomRight: {
+          latitude: -1.930420337765002,
+          longitude: 30.153160658107158
+        }
       },
       floors: [
         {
           id: 'leadership-floor-ground',
           level: 1,
           name: 'Ground Floor',
-          floorPlanUri: require('../assets/floorplans/inside_leadership_center_first_floor_plan-map_ALU.png'),
+          floorPlanUri: require('../assets/floorplans/inside_leadership_center_ground_floor_plan-map_ALU.png'),
           scale: {
-            pixelsPerMeter: 20
+            pixelsPerMeter: 34.5 // Based on calculations from floor plan measurements
           },
           features: [
             {
               id: 'elevator-ground',
               type: 'elevator',
               title: 'Main Elevator',
-              description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9306162, longitude: 30.1529425 } // Center of the building
+              description: 'Accessible elevator connecting all floors',
+              coordinate: {
+                latitude: -1.9306431189363997,
+                longitude: 30.15288957367571
+              }
             },
             {
-              id: 'restroom-ground',
+              id: 'restroom-male-ground',
               type: 'restroom',
-              title: 'Accessible Restroom',
-              description: 'Ground floor accessible restroom near Wellness Center',
-              coordinate: { latitude: -1.9305162, longitude: 30.1531425 }
+              title: 'Male Restroom',
+              description: 'Ground floor accessible male restroom',
+              coordinate: {
+                latitude: -1.9306718648939993,
+                longitude: 30.152978197432148
+              }
+            },
+            {
+              id: 'restroom-female-ground',
+              type: 'restroom',
+              title: 'Female Restroom',
+              description: 'Ground floor accessible female restroom',
+              coordinate: {
+                latitude: -1.9306898311174991,
+                longitude: 30.152978197432148
+              }
             },
             {
               id: 'entrance-main',
               type: 'entrance',
               title: 'Main Entrance',
               description: 'Main accessible entrance to the Leadership Center',
-              coordinate: { latitude: -1.9303162, longitude: 30.1529425 } // North side entrance
-            },
-            {
-              id: 'ramp-main',
-              type: 'ramp',
-              title: 'Main Entrance Ramp',
-              description: 'Wheelchair accessible ramp at main entrance',
-              coordinate: { latitude: -1.9303662, longitude: 30.1528425 } // Near north entrance
+              coordinate: {
+                latitude: -1.9307616960114984,
+                longitude: 30.1529
+              }
             }
           ],
           routes: [
             {
-              id: 'route-elevator-restroom-ground',
-              name: 'Elevator to Restroom',
-              description: 'Accessible route from elevator to restroom',
+              id: 'route-entrance-elevator-ground',
+              name: 'Entrance to Elevator',
+              description: 'Accessible route from main entrance to the elevator',
               points: [
-                { latitude: -1.9306162, longitude: 30.1529425 }, // Elevator
-                { latitude: -1.9305662, longitude: 30.1530425 }, // Hallway point
-                { latitude: -1.9305162, longitude: 30.1531425 }  // Restroom
+                {
+                  latitude: -1.9307616960114984,
+                  longitude: 30.1529
+                },
+                {
+                  latitude: -1.9307024074739991,
+                  longitude: 30.1529
+                },
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15288957367571
+                }
               ]
             },
             {
-              id: 'route-entrance-elevator-ground',
-              name: 'Entrance to Elevator',
-              description: 'Accessible route from main entrance to elevator',
+              id: 'route-elevator-restroom-ground',
+              name: 'Elevator to Restrooms',
+              description: 'Accessible route from elevator to the restrooms',
               points: [
-                { latitude: -1.9303162, longitude: 30.1529425 }, // Main entrance
-                { latitude: -1.9304162, longitude: 30.1529425 }, // Hallway point
-                { latitude: -1.9306162, longitude: 30.1529425 }  // Elevator
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15288957367571
+                },
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15293478684644
+                },
+                {
+                  latitude: -1.9306718648939993,
+                  longitude: 30.152978197432148
+                },
+                {
+                  latitude: -1.9306808480057491,
+                  longitude: 30.152978197432148
+                },
+                {
+                  latitude: -1.9306898311174991,
+                  longitude: 30.152978197432148
+                }
               ]
             }
           ]
@@ -315,33 +363,77 @@ const getBuildingPlans = (): BuildingPlan[] => {
           name: 'First Floor',
           floorPlanUri: require('../assets/floorplans/inside_leadership_center_first_floor_plan-map_ALU.png'),
           scale: {
-            pixelsPerMeter: 20
+            pixelsPerMeter: 34.5 // Same scale as ground floor for consistency
           },
           features: [
             {
               id: 'elevator-first',
               type: 'elevator',
               title: 'Main Elevator',
-              description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9306162, longitude: 30.1529425 }
+              description: 'Accessible elevator connecting all floors',
+              coordinate: {
+                latitude: -1.9306431189363997,
+                longitude: 30.15288957367571
+              }
             },
             {
-              id: 'restroom-first',
+              id: 'restroom-male-first',
               type: 'restroom',
-              title: 'Accessible Restroom',
-              description: 'First floor accessible restroom near Mechanical Room',
-              coordinate: { latitude: -1.9304162, longitude: 30.1532425 }
+              title: 'Male Restroom',
+              description: 'First floor accessible male restroom',
+              coordinate: {
+                latitude: -1.9306718648939993,
+                longitude: 30.152978197432148
+              }
+            },
+            {
+              id: 'computer-lab',
+              type: 'other',
+              title: 'Computer Lab',
+              description: 'Accessible computer lab for students',
+              coordinate: {
+                latitude: -1.9306538986704995,
+                longitude: 30.15303032905358
+              }
             }
           ],
           routes: [
             {
-              id: 'route-elevator-wellness-first',
-              name: 'Elevator to Wellness Center',
-              description: 'Accessible route from elevator to Wellness Center',
+              id: 'route-elevator-restroom-first',
+              name: 'Elevator to Restroom',
+              description: 'Accessible route from elevator to the restroom',
               points: [
-                { latitude: -1.9306162, longitude: 30.1529425 }, // Elevator
-                { latitude: -1.9305162, longitude: 30.1530425 }, // Hallway point
-                { latitude: -1.9304162, longitude: 30.1531425 }  // Wellness Center
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15288957367571
+                },
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15293478684644
+                },
+                {
+                  latitude: -1.9306718648939993,
+                  longitude: 30.152978197432148
+                }
+              ]
+            },
+            {
+              id: 'route-elevator-computer-lab',
+              name: 'Elevator to Computer Lab',
+              description: 'Accessible route from elevator to the computer lab',
+              points: [
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15288957367571
+                },
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15295739342715
+                },
+                {
+                  latitude: -1.9306538986704995,
+                  longitude: 30.15303032905358
+                }
               ]
             }
           ]
@@ -352,23 +444,71 @@ const getBuildingPlans = (): BuildingPlan[] => {
           name: 'Second Floor',
           floorPlanUri: require('../assets/floorplans/inside_leadership_center_second_floor_plan-map_ALU.png'),
           scale: {
-            pixelsPerMeter: 20
+            pixelsPerMeter: 34.5 // Same scale as other floors for consistency
           },
           features: [
             {
               id: 'elevator-second',
               type: 'elevator',
               title: 'Main Elevator',
-              description: 'Accessible elevator to all floors',
-              coordinate: { latitude: -1.9306162, longitude: 30.1529425 }
+              description: 'Accessible elevator connecting all floors',
+              coordinate: {
+                latitude: -1.9306431189363997,
+                longitude: 30.15288957367571
+              }
+            },
+            {
+              id: 'restroom-male-second',
+              type: 'restroom',
+              title: 'Male Restroom',
+              description: 'Second floor accessible male restroom',
+              coordinate: {
+                latitude: -1.9306718648939993,
+                longitude: 30.152978197432148
+              }
+            },
+            {
+              id: 'restroom-female-second',
+              type: 'restroom',
+              title: 'Female Restroom',
+              description: 'Second floor accessible female restroom',
+              coordinate: {
+                latitude: -1.9306898311174991,
+                longitude: 30.152978197432148
+              }
             }
-            // Add other features on this floor
           ],
           routes: [
-            // Add routes for this floor
+            {
+              id: 'route-elevator-restroom-second',
+              name: 'Elevator to Restrooms',
+              description: 'Accessible route from elevator to the restrooms',
+              points: [
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15288957367571
+                },
+                {
+                  latitude: -1.9306431189363997,
+                  longitude: 30.15293478684644
+                },
+                {
+                  latitude: -1.9306718648939993,
+                  longitude: 30.152978197432148
+                },
+                {
+                  latitude: -1.9306808480057491,
+                  longitude: 30.152978197432148
+                },
+                {
+                  latitude: -1.9306898311174991,
+                  longitude: 30.152978197432148
+                }
+              ]
+            }
           ]
         }
       ]
     }
   ];
-}; 
+};
