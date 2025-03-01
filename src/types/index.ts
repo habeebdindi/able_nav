@@ -54,3 +54,24 @@ export interface GeoPoint {
   latitude: number;
   longitude: number;
 }
+
+/**
+ * Represents a step in a navigation route
+ */
+export interface RouteStep {
+  startPoint: GeoPoint;
+  distance: number;
+  bearing: number;
+  instruction: string;
+}
+
+/**
+ * Represents a complete navigation route
+ */
+export interface NavigationRoute {
+  origin: GeoPoint;
+  destination: GeoPoint;
+  totalDistance: number;
+  estimatedTimeSeconds: number;
+  steps: RouteStep[];
+}

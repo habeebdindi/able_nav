@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<gpx version="1.1" creator="OsmAnd Maps 4.9.4 (4947)" xmlns="https://www.topografix.com/GPX/1/1" xmlns:osmand="https://osmand.net/docs/technical/osmand-file-formats/osmand-gpx" xmlns:gpxtpx="https://www8.garmin.com/xmlschemas/TrackPointExtensionv1.xsd" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+    <metadata>
+        <name>Leadership_Center_Ground_Floor_Restroom_to_Elevator2025-03-01_15-35_Sat</name>
+        <time>2025-03-01T13:36:12Z</time>
+    </metadata>
+    <wpt lat="-1.9308372" lon="30.1528853">
+        <time>2025-03-01T13:50:47Z</time>
+        <name>elevator_wheelchair_accessible</name>
+        <desc>Leadership Center Ground floor elevator, can go two floors up</desc>
+        <type></type>
+        <extensions>
+            <osmand:color>#CC22FFEE</osmand:color>
+            <osmand:address></osmand:address>
+        </extensions>
+    </wpt>
+    <trk>
+        <name>Elevator Path</name>
+        <trkseg>
+            <trkpt lat="-1.9308503" lon="30.1528864">
+                <ele>1552.3</ele>
+                <time>2025-03-01T13:35:45Z</time>
+                <hdop>20</hdop>
+            </trkpt>
+            <trkpt lat="-1.9308498" lon="30.1528868">
+                <ele>1552.2</ele>
+                <time>2025-03-01T13:35:52Z</time>
+                <hdop>20</hdop>
+            </trkpt>
+            <trkpt lat="-1.9308356" lon="30.1528826">
+                <ele>1551.7</ele>
+                <time>2025-03-01T13:35:59Z</time>
+                <hdop>20</hdop>
+            </trkpt>
+            <trkpt lat="-1.9308351" lon="30.1528828">
+                <ele>1551.7</ele>
+                <time>2025-03-01T13:36:05Z</time>
+                <hdop>20</hdop>
+            </trkpt>
+            <trkpt lat="-1.9308313" lon="30.152884">
+                <ele>1552.9</ele>
+                <time>2025-03-01T13:36:12Z</time>
+                <hdop>20</hdop>
+            </trkpt>
+        </trkseg>
+    </trk>
+    <extensions>
+        <osmand:show_arrows>false</osmand:show_arrows>
+        <osmand:show_start_finish>false</osmand:show_start_finish>
+        <osmand:vertical_exaggeration_scale>0.25</osmand:vertical_exaggeration_scale>
+        <osmand:elevation_meters>1000.0</osmand:elevation_meters>
+        <osmand:line_3d_visualization_by_type>top</osmand:line_3d_visualization_by_type>
+        <osmand:line_3d_visualization_wall_color_type>upward_gradient</osmand:line_3d_visualization_wall_color_type>
+        <osmand:color>#FF0000</osmand:color>
+        <osmand:coloring_type>solid</osmand:coloring_type>
+        <osmand:split_interval>0.0</osmand:split_interval>
+        <osmand:split_type>no_split</osmand:split_type>
+        <osmand:points_groups>
+            <group name="" color="#22FFEECC" icon="special_star" background="circle"/>
+        </osmand:points_groups>
+    </extensions>
+</gpx> 

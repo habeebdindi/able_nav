@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<gpx version="1.1" creator="OsmAnd Maps 4.9.4 (4947)" xmlns="https://www.topografix.com/GPX/1/1" xmlns:osmand="https://osmand.net/docs/technical/osmand-file-formats/osmand-gpx" xmlns:gpxtpx="https://www8.garmin.com/xmlschemas/TrackPointExtensionv1.xsd" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+    <metadata>
+        <name>accessible 2025-03-01_03-09_Sat</name>
+        <time>2025-03-01T01:09:23Z</time>
+    </metadata>
+    <wpt lat="-1.9291356" lon="30.152598">
+        <time>2025-03-01T01:13:02Z</time>
+        <name>facility_restroom_wheelchair_accessible</name>
+        <desc></desc>
+        <type></type>
+        <extensions>
+            <osmand:color>#EECC22FF</osmand:color>
+            <osmand:address></osmand:address>
+        </extensions>
+    </wpt>
+    <trk>
+        <trkseg>
+            <trkpt lat="-1.9290468" lon="30.1527823">
+                <ele>1582.7</ele>
+                <time>2025-03-01T01:09:11Z</time>
+                <hdop>14.7</hdop>
+                <extensions>
+                    <osmand:speed>0.2</osmand:speed>
+                </extensions>
+            </trkpt>
+            <trkpt lat="-1.9292028" lon="30.152579">
+                <ele>1580.6</ele>
+                <time>2025-03-01T01:09:17Z</time>
+                <hdop>36.2</hdop>
+                <extensions>
+                    <osmand:speed>1.1</osmand:speed>
+                </extensions>
+            </trkpt>
+            <trkpt lat="-1.9291653" lon="30.1525965">
+                <ele>1578.3</ele>
+                <time>2025-03-01T01:09:23Z</time>
+                <hdop>45.7</hdop>
+                <extensions>
+                    <osmand:speed>0.4</osmand:speed>
+                </extensions>
+            </trkpt>
+        </trkseg>
+    </trk>
+    <extensions>
+        <osmand:show_arrows>true</osmand:show_arrows>
+        <osmand:show_start_finish>true</osmand:show_start_finish>
+        <osmand:vertical_exaggeration_scale>0.25</osmand:vertical_exaggeration_scale>
+        <osmand:elevation_meters>1000.0</osmand:elevation_meters>
+        <osmand:line_3d_visualization_by_type>top</osmand:line_3d_visualization_by_type>
+        <osmand:line_3d_visualization_wall_color_type>upward_gradient</osmand:line_3d_visualization_wall_color_type>
+        <osmand:color>#00000000</osmand:color>
+        <osmand:coloring_type>solid</osmand:coloring_type>
+        <osmand:split_interval>0.0</osmand:split_interval>
+        <osmand:split_type>no_split</osmand:split_type>
+        <osmand:points_groups>
+            <group name="" color="#EECC22" icon="special_star" background="circle"/>
+        </osmand:points_groups>
+    </extensions>
+</gpx> 

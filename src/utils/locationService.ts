@@ -63,6 +63,36 @@ export const calculateDistance = (point1: GeoPoint, point2: GeoPoint): number =>
   return R * c; // Distance in meters
 };
 
+// Alias for calculateDistance to match the function name used in navigationService
+export const getDistanceBetweenPoints = calculateDistance;
+
+/**
+ * Calculate the bearing between two points in degrees
+ * @param point1 The starting point
+ * @param point2 The ending point
+ * @returns The bearing in degrees (0-360)
+ */
+export const getBearingBetweenPoints = (point1: GeoPoint, point2: GeoPoint): number => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const toDeg = (value: number) => (value * 180) / Math.PI;
+  
+  const lat1 = toRad(point1.latitude);
+  const lat2 = toRad(point2.latitude);
+  const lon1 = toRad(point1.longitude);
+  const lon2 = toRad(point2.longitude);
+  
+  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+  
+  let bearing = toDeg(Math.atan2(y, x));
+  
+  // Normalize to 0-360
+  bearing = (bearing + 360) % 360;
+  
+  return bearing;
+};
+
 /**
  * Find the nearest point in an array of points to a reference point
  * @param referencePoint The reference point

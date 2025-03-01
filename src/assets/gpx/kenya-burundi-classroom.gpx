@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<gpx version="1.1" creator="OsmAnd Maps 4.9.4 (4947)" xmlns="https://www.topografix.com/GPX/1/1" xmlns:osmand="https://osmand.net/docs/technical/osmand-file-formats/osmand-gpx" xmlns:gpxtpx="https://www8.garmin.com/xmlschemas/TrackPointExtensionv1.xsd" xmlns:xsi="https://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+    <metadata>
+        <name>kenya-burundi-classroom</name>
+        <time>2025-03-01T11:29:33Z</time>
+    </metadata>
+    <wpt lat="-1.9306339" lon="30.1536142">
+        <time>2025-03-01T11:31:00Z</time>
+        <name>entrance_main_wheelchair_accessible</name>
+        <extensions>
+            <osmand:color>#EECC22FF</osmand:color>
+            <osmand:icon>special_star</osmand:icon>
+            <osmand:background>square</osmand:background>
+        </extensions>
+    </wpt>
+    <wpt lat="-1.9306235" lon="30.1535466">
+        <time>2025-03-01T11:36:21Z</time>
+        <name>entrance_main_wheelchair_accessible</name>
+        <desc></desc>
+        <type></type>
+        <extensions>
+            <osmand:color>#EECC22</osmand:color>
+            <osmand:background>circle</osmand:background>
+            <osmand:address></osmand:address>
+        </extensions>
+    </wpt>
+    <trk>
+        <name>01-Mar-2025-1329</name>
+        <trkseg>
+            <trkpt lat="-1.9306715" lon="30.1536704">
+                <ele>1562.5</ele>
+                <time>2025-03-01T11:29:25Z</time>
+            </trkpt>
+            <trkpt lat="-1.9306439" lon="30.1536172">
+                <ele>1562.4</ele>
+                <time>2025-03-01T11:29:27Z</time>
+            </trkpt>
+            <trkpt lat="-1.9306091" lon="30.1534431">
+                <ele>1562.6</ele>
+                <time>2025-03-01T11:29:28Z</time>
+            </trkpt>
+            <trkpt lat="-1.9306192" lon="30.1534714">
+                <ele>1562.9</ele>
+                <time>2025-03-01T11:29:29Z</time>
+            </trkpt>
+            <trkpt lat="-1.9306244" lon="30.1534119">
+                <ele>1563.3</ele>
+                <time>2025-03-01T11:29:33Z</time>
+            </trkpt>
+        </trkseg>
+    </trk>
+    <extensions>
+        <osmand:show_arrows>false</osmand:show_arrows>
+        <osmand:show_start_finish>false</osmand:show_start_finish>
+        <osmand:split_interval>0.0</osmand:split_interval>
+        <osmand:split_type>no_split</osmand:split_type>
+        <osmand:points_groups>
+            <group name="" color="#22FFEECC" icon="special_star" background="square"/>
+        </osmand:points_groups>
+    </extensions>
+</gpx> 
