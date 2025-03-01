@@ -1,92 +1,56 @@
-// Accessibility feature types
-export type FeatureType = 'ramp' | 'elevator' | 'restroom' | 'entrance' | 'parking' | 'other';
+/**
+ * Represents a point in a GPX track
+ */
+export interface TrackPoint {
+  latitude: number;
+  longitude: number;
+  elevation?: number;
+  time?: string;
+  speed?: number;
+  hdop?: number; // Horizontal dilution of precision
+}
 
-export interface Coordinate {
+/**
+ * Represents a track in a GPX file
+ */
+export interface Track {
+  name: string;
+  points: TrackPoint[];
+}
+
+/**
+ * Represents a waypoint in a GPX file
+ */
+export interface Waypoint {
+  latitude: number;
+  longitude: number;
+  name: string;
+  description?: string;
+  time?: string;
+  type?: string;
+}
+
+/**
+ * Represents metadata from a GPX file
+ */
+export interface GPXMetadata {
+  name?: string;
+  time?: string;
+}
+
+/**
+ * Represents structured data from a parsed GPX file
+ */
+export interface GPXData {
+  tracks: Track[];
+  waypoints: Waypoint[];
+  metadata: GPXMetadata;
+}
+
+/**
+ * Represents a geographic point
+ */
+export interface GeoPoint {
   latitude: number;
   longitude: number;
 }
-
-export interface AccessibilityFeature {
-  id: string;
-  type: FeatureType;
-  title: string;
-  description: string;
-  coordinate: Coordinate;
-}
-
-export interface AccessibleRoute {
-  id: string;
-  name: string;
-  description: string;
-  points: Coordinate[];
-}
-
-export interface BuildingPlan {
-  id: string;
-  name: string;
-  description: string;
-  floors: Floor[];
-  // Add reference coordinates to position the floor plan on the real world map
-  referenceCoordinates: {
-    topLeft: Coordinate;
-    topRight: Coordinate;
-    bottomLeft: Coordinate;
-    bottomRight: Coordinate;
-  };
-}
-
-export interface Floor {
-  id: string;
-  level: number;
-  name: string;
-  features: AccessibilityFeature[];
-  routes: AccessibleRoute[];
-  // Allow both string URLs and require() assets
-  floorPlanUri: string | number | { uri: string };
-  // Add scale information to convert pixels to real-world coordinates
-  scale: {
-    pixelsPerMeter: number;
-  };
-}
-
-// Indoor positioning types
-export interface IndoorPosition {
-  buildingId: string;
-  floorId: string;
-  // Position on the floor plan image (in pixels)
-  x: number;
-  y: number;
-  // Optional real-world coordinates if available
-  coordinate?: Coordinate;
-}
-
-// AR navigation types
-export interface ARNavigationPoint {
-  id: string;
-  type: 'waypoint' | 'destination' | 'feature';
-  position: {
-    x: number;
-    y: number;
-    z: number;
-  };
-  label?: string;
-  featureId?: string;
-}
-
-export interface ARNavigationPath {
-  id: string;
-  points: ARNavigationPoint[];
-  color: string;
-  width: number;
-}
-
-// User settings
-export interface UserSettings {
-  voiceNavigation: boolean;
-  highContrast: boolean;
-  largeText: boolean;
-  vibrationFeedback: boolean;
-  autoZoom: boolean;
-  showAllAccessibility: boolean;
-  preferredARMode: 'full' | 'minimal' | 'off';
-} 
